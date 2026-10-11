@@ -64,6 +64,11 @@ enum class RendererCounter : u32 {
     // Full SetVertexData uploads: without a kept input to compare with, and
     // with one that differed outside the colour lanes.
     VertexUploadsUnkept, VertexUploadsChanged,
+    // Phase 1 rain (PspRain::Draw), all of its layers; rain columns drawn,
+    // columns in view under a roof (no rain) and collision ceiling queries.
+    RainUs, RainColumns, RainRoofedColumns, RainCeilingQueries,
+    // Scene buffers drawn with additive blending (glow) and their indices.
+    AdditiveDraws, AdditiveIndices,
     Count
 };
 

@@ -2534,6 +2534,47 @@ void pspContext::DrawScreenCopy(u32 sourceFormat, const void* sourceTexture) {
     gu3DStateReady = false;
 }
 
+void pspContext::DrawRainGeometry(const Mat4& rainWorld, int primitive,
+                                  const PspRainVertex* vertices,
+                                  const u32 (*runs)[2], u32 runCount) {
+    if (!listOpen || !vertices || runCount == 0) return;
+    FlushQueuedOpaqueDraws();
+    if (pauseBackdropValid) ReleasePauseBackdrop();
+    EnsureListSpace();
+    const bool projectionChanged = LoadGumMatrix(GU_PROJECTION, projection);
+    const bool viewChanged = LoadGumMatrix(GU_VIEW, view);
+    const bool worldChanged = LoadGumMatrix(GU_MODEL, rainWorld);
+    if (projectionChanged || viewChanged || worldChanged) sceGumUpdateMatrix();
+    // Additive over the scene: depth-tested against it, never written.
+    GuDisable(GU_TEXTURE_2D);
+    GuDisable(GU_ALPHA_TEST);
+    GuDisable(GU_CULL_FACE);
+    GuEnable(GU_DEPTH_TEST);
+    GuDepthFunc(GU_GEQUAL);
+    GuDepthMask(GU_TRUE);
+    GuDepthOffset(0);
+    SetBlend(PDDI_BLEND_ADD);
+    constexpr int kFormat = GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_3D;
+    u32 submitted = 0;
+    for (u32 i = 0; i < runCount; ++i) {
+        if (runs[i][1] == 0) continue;
+        GuDrawArray(primitive, kFormat, static_cast<int>(runs[i][1]), nullptr, vertices + runs[i][0]);
+        submitted += runs[i][1];
+    }
+    PspPerf::RecordDrawSubmission(submitted);
+    // The texture, blend, depth and cull registers changed outside the 3D
+    // state cache; the next draw re-emits them.
+    pageBindingValid = false;
+    gu3DStateReady = false;
+}
+
+void DrawPspRainLines(const Mat4& rainWorld, const PspRainVertex* vertices,
+                      const u32 (*runs)[2], u32 runCount) {
+    if (g_activeContext) {
+        g_activeContext->DrawRainGeometry(rainWorld, GU_LINES, vertices, runs, runCount);
+    }
+}
+
 bool pspContext::CapturePauseBackdrop() {
     if (!listOpen || !g_staticVram.initialized) return false;
     EnsureListSpace(256u);
@@ -3904,6 +3945,11 @@ void pspContext::DrawPrimBuffer(pddiPrimBuffer* base, u32 indexOffset, u32 index
     if (!replayingOpaqueQueue) {
         if (QueueOpaqueDraw(buffer, indexOffset, indexCount)) return;
         FlushQueuedOpaqueDraws();
+    }
+    if (blendMode == PDDI_BLEND_ADD) {
+        PspPerf::CountRenderer(PspPerf::RendererCounter::AdditiveDraws);
+        PspPerf::CountRenderer(PspPerf::RendererCounter::AdditiveIndices,
+            indexCount ? indexCount : buffer->GetIndexCount());
     }
 
 #if defined(PSP_GU_DIAGNOSTIC)

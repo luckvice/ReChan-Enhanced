@@ -731,7 +731,9 @@ void WriteReportTo(const char* path, u32 scenario, s32 level) {
         "skel_callback_avg_us", "director_overlay_avg_us", "overlay_effect_draws_avg",
         "overlay_effect_walk_avg", "vertex_upload_skips_avg",
         "ram_page_binds_avg", "geo_light_avg_us", "model_shadow_avg_us",
-        "vertex_colour_uploads_avg", "vertex_uploads_unkept_avg", "vertex_uploads_changed_avg"
+        "vertex_colour_uploads_avg", "vertex_uploads_unkept_avg", "vertex_uploads_changed_avg",
+        "rain_avg_us", "rain_columns_avg", "rain_roofed_columns_avg", "rain_ceiling_queries_avg",
+        "additive_draws_avg", "additive_indices_avg"
     };
     static_assert(sizeof(rendererNames) / sizeof(rendererNames[0])
         == static_cast<u32>(RendererCounter::Count), "renderer schema mismatch");

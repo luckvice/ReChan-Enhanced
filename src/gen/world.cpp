@@ -50,6 +50,9 @@
 
 #include "extra/shadowcsm.h"
 #include "psp/psp_perf.h"
+#if defined(RC_PLATFORM_PSP)
+#include "psp/psp_rain.h"
+#endif
 
 static void UploadRawTextureToWorldVRAM(s16 x, s16 y, s16 w, s16 h, const u8* raw) {
     if (!g_game || !g_game->GetWorld()) {
@@ -5635,6 +5638,10 @@ void World::DrawEverythingHandler(const LVector* playerPos) {
     p3d::context->EnableZBuffer(true);
     p3d::context->SetDepthClamp(false);
 
+#if defined(RC_PLATFORM_PSP)
+    // Phase 1 rain, over the scene and its effects.
+    PspRain::Draw(GetCurLevelID(), passBaseWorld);
+#endif
     p3d::context->SetWorldMatrix(passBaseWorld);
 #if defined(RC_PLATFORM_PSP) && !defined(NDEBUG)
     if (probePspWorldRender) {

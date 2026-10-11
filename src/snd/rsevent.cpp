@@ -2316,6 +2316,11 @@ void InteractiveMusicControllerThink() {
     g_sound->PlayMusicTrackSong(path, static_cast<u32>(desired), g_sound->musicVolume);
 }
 
+s32 rsGetAmbienceSpace() {
+    // The bed's own space: its default at level start, then the switches'.
+    return g_ambiance.IsOpen() ? g_ambiance.GetSpace() : g_currentAmbienceSpace;
+}
+
 // PSX: rsEvent (RSEVENT.CPP:48, 0x800346B0)
 s32 rsEvent(s32 event, s32 param1, s32 param2, s32 param3) {
     MARKFUNCTION(0x800346B0);

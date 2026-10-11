@@ -37,6 +37,9 @@ enum rsSoundEvent : s32 {
 
 // Central sound event dispatcher
 s32 rsEvent(s32 event, s32 param1, s32 param2, s32 param3);
+// The ambience space Jackie is in: the bed's default at level start, then
+// the one set by the level's SoundAmbiantSpace switches as he moves.
+s32 rsGetAmbienceSpace();
 
 // Handles control events 1-23
 s32 jcsHandleControlEvent(s32 event, s32 param1, s32 param2, s32 param3);

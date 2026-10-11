@@ -26,6 +26,15 @@ struct PspVertex {
     float x, y, z;
 };
 
+// Phase 1 rain (src/psp/psp_rain.cpp): untextured world geometry with 16-bit
+// positions. The GE reads 16-bit positions as value / 32768, so the world
+// matrix carries that scale.
+struct PspRainVertex {
+    u32 color;
+    s16 x, y, z;
+    s16 pad;
+};
+
 // PSX packet geometry is authored with byte UVs. Keep the UV lanes as native
 // 16-bit GU coordinates while retaining float positions: the latter avoids
 // changing the model-space scale used by the engine's 3D matrices. This is a
@@ -279,6 +288,12 @@ void PreparePspPrimBufferForDynamicSubmission(pddiPrimBuffer* buffer);
 bool UpdatePspPrimBufferDynamicVertices(pddiPrimBuffer* buffer,
                                         const void* data, u32 count,
                                         bool uvIsIntegral);
+// Draws runs ({first vertex, vertex count}) of a static line array over the
+// scene with the camera matrices: additive, depth-tested, no depth writes.
+// The array must stay unchanged and written back from the data cache while
+// the GE may read it (the frame it is drawn in).
+void DrawPspRainLines(const Mat4& rainWorld, const PspRainVertex* vertices,
+                      const u32 (*runs)[2], u32 runCount);
 // Minimum display refreshes per presented frame (1 = up to 60 fps, 2 = a
 // steady 30 fps for cinema mode); clamped to 1..4.
 void SetPspSwapInterval(u32 refreshes);
@@ -569,6 +584,9 @@ public:
     void DrawVRAMQuad(u32 handle, u16 tpage, u16 cba,
                       float x, float y, float w, float h,
                       float u0, float v0, float u1, float v1, pddiColour color);
+    // See DrawPspRainLines.
+    void DrawRainGeometry(const Mat4& rainWorld, int primitive, const PspRainVertex* vertices,
+                          const u32 (*runs)[2], u32 runCount);
 
 private:
     friend class pspDisplay;
