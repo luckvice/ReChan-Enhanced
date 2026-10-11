@@ -18,6 +18,7 @@
 #include <cstdio>
 
 #include "psp/psp_funcprof.h"
+#include "psp/psp_rain.h"
 
 #if defined(PSP_BENCH_CROWD)
 #include "ai/humanoid.h"
@@ -52,8 +53,24 @@ constexpr u32 kSegmentFrames = 60;
 struct BenchmarkScenario {
     s32 levelId;
     const char* shortName;
+    u32 petal = 0;
+    // Index into PspRain::kConfigLayers (0 = no rain).
+    u32 rainConfig = 0;
 };
 
+#if defined(PSP_BENCH_RAIN)
+// Rain benchmark: phase 1 only, from the start of each of its three petals,
+// with every rain configuration (C0 = no rain). Every scenario reloads its
+// petal, so all of them start from the same state.
+static constexpr BenchmarkScenario kScenarios[] = {
+    { 1, "CHINATOWN-P0", 0, 0 }, { 1, "CHINATOWN-P0", 0, 1 }, { 1, "CHINATOWN-P0", 0, 2 },
+    { 1, "CHINATOWN-P0", 0, 3 }, { 1, "CHINATOWN-P0", 0, 4 },
+    { 1, "CHINATOWN-P1", 1, 0 }, { 1, "CHINATOWN-P1", 1, 1 }, { 1, "CHINATOWN-P1", 1, 2 },
+    { 1, "CHINATOWN-P1", 1, 3 }, { 1, "CHINATOWN-P1", 1, 4 },
+    { 1, "CHINATOWN-P2", 2, 0 }, { 1, "CHINATOWN-P2", 2, 1 }, { 1, "CHINATOWN-P2", 2, 2 },
+    { 1, "CHINATOWN-P2", 2, 3 }, { 1, "CHINATOWN-P2", 2, 4 },
+};
+#else
 // Keep the benchmark underhood-only and cover representative gameplay maps.
 // Level 7 is the hub/destination area used by the manual PSP baseline.
 static constexpr BenchmarkScenario kScenarios[] = {
@@ -65,6 +82,8 @@ static constexpr BenchmarkScenario kScenarios[] = {
     { 6, "TEMPLE" },
     { 7, "HUB" },
 };
+#endif
+constexpr u32 kScenarioCount = static_cast<u32>(sizeof(kScenarios) / sizeof(kScenarios[0]));
 
 struct RoutePoint {
     s32 eyeX;
@@ -164,6 +183,41 @@ static void GatherCrowd() {
 
 static s32 Lerp(s32 from, s32 to, u32 numerator, u32 denominator) {
     return from + static_cast<s32>((static_cast<s64>(to - from) * numerator) / denominator);
+}
+
+// Starts a scenario on its first Play frame: the next one after a queued load
+// (it may be the same level, as in the rain benchmark), or the one matching a
+// new level (the first scenario). Returns true on that frame only.
+static bool SyncScenario(World* world) {
+    const s32 levelId = world->GetCurLevelID();
+    if (!s_transitionQueued && levelId == s_activeLevelId) return false;
+    if (s_transitionQueued) {
+        s_scenarioIndex = std::min(s_scenarioIndex + 1u, kScenarioCount - 1u);
+    }
+    else {
+        for (u32 i = 0; i < kScenarioCount; ++i) {
+            if (kScenarios[i].levelId == levelId) {
+                s_scenarioIndex = i;
+                break;
+            }
+        }
+    }
+    s_activeLevelId = levelId;
+    s_baseCaptured = false;
+    s_measurementStarted = false;
+    s_scenarioFinished = false;
+    s_transitionQueued = false;
+    s_phase11Active = false;
+    s_routeFrame = 0;
+    s_measurementFrames = 0;
+    const BenchmarkScenario& scenario = kScenarios[s_scenarioIndex];
+    const u32 layers = PspRain::kConfigLayers[std::min(scenario.rainConfig, PspRain::kConfigCount - 1u)];
+    PspRain::SetLayers(layers);
+    PspPerf::SetScenarioDetail(scenario.petal, layers);
+    PspPerf::WriteState("play", levelId,
+        static_cast<s32>(world->GetCurrentLevelIndex()),
+        static_cast<s32>(world->GetTargetLevelIndex()));
+    return true;
 }
 
 } // namespace
@@ -312,11 +366,8 @@ void BeginBenchmarkFrame(Game* game) {
     // random sequences, the 30 Hz tick phase and the scripted input, so the
     // scenario no longer depends on what ran (or how long loading took)
     // before it.
-    static s32 seededLevelId = -1;
     if (!game || game->GetState() != GameState::Play || !game->GetWorld()) return;
-    const s32 levelId = game->GetWorld()->GetCurLevelID();
-    if (levelId == seededLevelId) return;
-    seededLevelId = levelId;
+    if (!SyncScenario(game->GetWorld())) return;
     rmRandomSeedRef() = 0x12345678u;
     std::srand(1u);
     if (g_time) g_time->ResetPlayPresentationState();
@@ -334,29 +385,10 @@ void UpdateBenchmarkCamera(Camera* camera) {
 
     if (!g_game || !g_game->GetWorld()) return;
     World* world = g_game->GetWorld();
-    const s32 levelId = world->GetCurLevelID();
-    if (levelId != s_activeLevelId) {
-        for (u32 i = 0; i < static_cast<u32>(sizeof(kScenarios) / sizeof(kScenarios[0])); ++i) {
-            if (kScenarios[i].levelId == levelId) {
-                s_scenarioIndex = i;
-                break;
-            }
-        }
-        s_activeLevelId = levelId;
-        s_baseCaptured = false;
-        s_measurementStarted = false;
-        s_scenarioFinished = false;
-        s_transitionQueued = false;
-        s_phase11Active = false;
-        s_routeFrame = 0;
-        s_measurementFrames = 0;
-        PspPerf::WriteState("play", levelId,
-            static_cast<s32>(world->GetCurrentLevelIndex()),
-            static_cast<s32>(world->GetTargetLevelIndex()));
-    }
+    SyncScenario(world);
 
 #if defined(PSP_BENCH_PHASE11_ONLY)
-    if (levelId != 1 || !p3d::input) {
+    if (world->GetCurLevelID() != 1 || !p3d::input) {
         camera->ClearBenchmarkMode();
         return;
     }
@@ -455,6 +487,10 @@ void OnBenchmarkFrameRecorded() {
         char path[48] = {};
 #if defined(PSP_BENCH_PHASE11_ONLY)
         std::snprintf(path, sizeof(path), "PSP_PERF_PHASE1_1.TXT");
+#elif defined(PSP_BENCH_RAIN)
+        std::snprintf(path, sizeof(path), "PSP_RAIN_P%lu_C%lu.TXT",
+            static_cast<unsigned long>(kScenarios[s_scenarioIndex].petal),
+            static_cast<unsigned long>(kScenarios[s_scenarioIndex].rainConfig));
 #else
         std::snprintf(path, sizeof(path), "PSP_PERF_S%02lu_L%02ld.TXT",
             static_cast<unsigned long>(s_scenarioIndex + 1u),
@@ -474,8 +510,14 @@ void OnBenchmarkFrameRecorded() {
             // The same simulated frame on every run: a pixel diff between two
             // builds shows any rendering change.
             char shotPath[24] = {};
+#if defined(PSP_BENCH_RAIN)
+            std::snprintf(shotPath, sizeof(shotPath), "SHOT_P%luC%lu.BMP",
+                static_cast<unsigned long>(kScenarios[s_scenarioIndex].petal),
+                static_cast<unsigned long>(kScenarios[s_scenarioIndex].rainConfig));
+#else
             std::snprintf(shotPath, sizeof(shotPath), "SHOT_S%02lu.BMP",
                 static_cast<unsigned long>(s_scenarioIndex + 1u));
+#endif
             WritePspLastFrame(shotPath);
         }
 #endif
@@ -488,8 +530,7 @@ void OnBenchmarkFrameRecorded() {
 #if defined(PSP_BENCH_PHASE11_ONLY)
         s_phase11Active = false;
 #endif
-        s_allScenariosFinished = s_scenarioIndex + 1u >=
-            static_cast<u32>(sizeof(kScenarios) / sizeof(kScenarios[0]));
+        s_allScenariosFinished = s_scenarioIndex + 1u >= kScenarioCount;
     }
 #endif
 }
@@ -517,16 +558,18 @@ bool QueueNextBenchmarkScenario(Game* game) {
 
     const u32 nextScenario = s_scenarioIndex + 1u;
     const s32 nextLevelIndex = world->LevelIDToIndex(kScenarios[nextScenario].levelId);
-    world->SetTargetLevelPetal(static_cast<u32>(nextLevelIndex), 0);
+    world->SetTargetLevelPetal(static_cast<u32>(nextLevelIndex), kScenarios[nextScenario].petal);
     world->ResetLevel();
     g_selectedLevel = static_cast<s16>(nextLevelIndex);
     s_transitionQueued = true;
     PspPerf::WriteState("queue", kScenarios[nextScenario].levelId,
         nextLevelIndex, static_cast<s32>(world->GetTargetLevelIndex()));
-    LOG("[PSP Bench] queue scenario %lu: levelId=%ld index=%ld",
+    LOG("[PSP Bench] queue scenario %lu: levelId=%ld index=%ld petal=%lu rain=C%lu",
         static_cast<unsigned long>(nextScenario + 1u),
         static_cast<long>(kScenarios[nextScenario].levelId),
-        static_cast<long>(nextLevelIndex));
+        static_cast<long>(nextLevelIndex),
+        static_cast<unsigned long>(kScenarios[nextScenario].petal),
+        static_cast<unsigned long>(kScenarios[nextScenario].rainConfig));
     game->SetState(GameState::QueueLevelLoad);
     return true;
 #endif

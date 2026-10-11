@@ -146,6 +146,8 @@ void ResetHandlerMetrics() {
 
 int g_mainThreadId = -1;  // SceUID of the thread that called Reset()
 u32 g_scenarioNote = 0;
+u32 g_scenarioPetal = 0;
+u32 g_effectLayers = 0;
 std::array<u32, 16> g_microbench{};
 u32 g_fusedSkinChecks = 0;
 u32 g_fusedSkinMismatches = 0;
@@ -681,11 +683,14 @@ void WriteReportTo(const char* path, u32 scenario, s32 level) {
     const std::size_t metadataOffset = std::strlen(report);
     std::snprintf(report + metadataOffset, sizeof(report) - metadataOffset,
         "schema_version=2\nbuild_stamp=%s %s\nrun_start_us=%llu\n"
-        "report_uptime_us=%llu\nscenario=%lu\nlevel=%ld\nscenario_note=%lu\npalette_path=%s\n",
+        "report_uptime_us=%llu\nscenario=%lu\nlevel=%ld\npetal=%lu\nscenario_note=%lu\n"
+        "effect_layers=%lu\npalette_path=%s\n",
         __DATE__, __TIME__, static_cast<unsigned long long>(g_runStartUs),
         static_cast<unsigned long long>(sceKernelGetSystemTimeWide()),
         static_cast<unsigned long>(scenario), static_cast<long>(level),
+        static_cast<unsigned long>(g_scenarioPetal),
         static_cast<unsigned long>(g_scenarioNote),
+        static_cast<unsigned long>(g_effectLayers),
 #if defined(PSP_PALETTE_REFERENCE)
         "reference"
 #else
@@ -817,6 +822,11 @@ void RecordMicrobench(u32 slot, u32 totalUs) {
 
 void SetScenarioNote(u32 note) {
     g_scenarioNote = note;
+}
+
+void SetScenarioDetail(u32 petal, u32 effectLayers) {
+    g_scenarioPetal = petal;
+    g_effectLayers = effectLayers;
 }
 
 void SetFrameTarget(u32 fps) {
@@ -954,6 +964,7 @@ void WriteReport() {}
 void WriteReportTo(const char*, u32, s32) {}
 void WriteState(const char*, s32, s32, s32) {}
 void SetScenarioNote(u32) {}
+void SetScenarioDetail(u32, u32) {}
 void SetFrameTarget(u32) {}
 void RecordFusedSkinCheck(bool) {}
 void GetSnapshot(Snapshot* out) { if (out) *out = {}; }

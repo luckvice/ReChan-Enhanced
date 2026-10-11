@@ -49,6 +49,7 @@ SOURCES += $(ROOT)/src/psp/psp_audio.cpp \
 	$(ROOT)/src/psp/psp_perf.cpp \
 	$(ROOT)/src/psp/psp_psxdiscextractor.cpp \
 	$(ROOT)/src/psp/psp_qa.cpp \
+	$(ROOT)/src/psp/psp_rain.cpp \
 	$(ROOT)/src/psp/psp_settings.cpp \
 	$(ROOT)/src/psp/psp_strdecode.cpp \
 	$(ROOT)/vendor/libp3d/pddi/psp/psprender.cpp \

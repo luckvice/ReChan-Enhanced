@@ -187,6 +187,9 @@ void WriteReport();
 void WriteReportTo(const char* path, u32 scenario = 0, s32 level = -1);
 // Free-form number written as scenario_note= (e.g. enemies gathered).
 void SetScenarioNote(u32 note);
+// Petal the scenario starts from and the effect layers it measures
+// (PspRain layer mask), written as petal= and effect_layers=.
+void SetScenarioDetail(u32 petal, u32 effectLayers);
 // Presentation target for the frame budget in reports (60, or 30 in cinema mode).
 void SetFrameTarget(u32 fps);
 // PSP_DRAW_MICROBENCH: total time of one repeated renderer operation,
