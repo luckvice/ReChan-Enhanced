@@ -170,7 +170,7 @@ Criador do ReChan: engenharia reversa, reimplementação do jogo e versão para 
 Tradução para português, legendas dos vídeos, carregar e salvar pelos menus e correções na colisão das portas.
 
 [FE_CR_LUCK]
-Versão para macOS com o renderizador Metal e o port PSP Edition.
+Versão para macOS com o renderizador Metal e o port RE:Chan HD Edition.
 
 [FE_CR_THANKS]
 Obrigado por jogar!

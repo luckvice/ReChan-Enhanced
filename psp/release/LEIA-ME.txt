@@ -1,4 +1,4 @@
-ReChan PSP Edition {{VERSION}}
+ReChan HD Edition {{VERSION}}
 ==============================
 
 Port não oficial e gratuito de Jackie Chan Stuntmaster (PlayStation) para o
@@ -17,7 +17,7 @@ INSTALAÇÃO
 1. No PSP, abra Ajustes > Conexão USB e ligue o cabo no computador.
 2. Copie a pasta RECHAN deste pacote para PSP/GAME/ no Memory Stick.
 3. Copie a imagem do disco para PSP/GAME/RECHAN/discimage/.
-4. Saia do modo USB e abra Jogo > Memory Stick > Re:Chain PSP Edition.
+4. Saia do modo USB e abra Jogo > Memory Stick > Re:Chan HD Edition.
 5. Na tela "Arquivos do Jogo", escolha Extrair Arquivos. Leva alguns
    minutos: deixe o PSP na tomada e não feche o jogo. Se a extração for
    interrompida, ela recomeça na próxima vez que o jogo abrir.
@@ -47,7 +47,7 @@ _AG (@gennariarmando) - criador do ReChan: engenharia reversa,
 GNK (@GABRIELNNK)     - tradução para português, legendas dos vídeos,
                         carregar e salvar pelos menus e correções na
                         colisão das portas.
-Lucas Soares (@luckvice) - versão Metal para macOS e o port PSP Edition.
+Lucas Soares (@luckvice) - versão Metal para macOS e o port RE:Chan HD Edition.
 
 AVISO LEGAL
 O ReChan é um projeto não oficial, gratuito e sem fins comerciais. Não tem

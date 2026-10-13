@@ -173,7 +173,7 @@ Creator of ReChan: reverse engineering, game reimplementation and the PC version
 Portuguese translation, video subtitles, loading and saving from the menus and door collision fixes.
 
 [FE_CR_LUCK]
-macOS version with the Metal renderer and the PSP Edition port.
+macOS version with the Metal renderer and the RE:Chan HD Edition port.
 
 [FE_CR_THANKS]
 Thanks for playing!

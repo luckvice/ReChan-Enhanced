@@ -1,4 +1,4 @@
-# Re:Chain PSP
+# RE:Chan HD Edition (PSP)
 
 This is the native PlayStation Portable target. It uses PSPSDK's GU, GUM,
 controller, audio and I/O APIs and runs at the PSP's fixed 480x272/60 Hz

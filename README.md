@@ -74,8 +74,56 @@ Once assets are extracted the disc image folder can be deleted.
 ReChan currently supports 64-bit x86 (`x86_64`) Windows and Linux, and Apple
 Silicon (`arm64`) macOS. On macOS the renderer uses a native Metal backend. To
 compile it yourself, see the [build guide](docs/BUILDING.md). A native PSP
-target is also available through PSPSDK; it uses the fixed 480×272 display and
-requires the user's locally extracted assets in the EBOOT data directory.
+target is also available through PSPSDK. See the platform sections below for
+the full feature lists of each edition.
+
+## Platform editions
+
+### PSP — *RE:Chan HD Edition* (Beta 1)
+
+A fully native PSP build (no emulation) compiled with PSPSDK, targeting the
+fixed 480×272 display. It ships as its own edition with platform features on
+top of the base game:
+
+- **60 FPS on PSP-2000/3000** (measured 58.5–60 FPS across all levels), with
+  an optional **Cinema mode** locked at a steady 30 FPS
+- Triple-buffered rendering with native indexed draws (GE list memory and
+  persistent indices)
+- **Modern HUD** (the PC HD HUD adapted to 480×272) or **Classic** style,
+  switchable on first boot
+- Native XMB-friendly menus with **PlayStation button prompts**
+- **Three closer camera options** besides the original camera
+- **FMV movies with subtitles in six languages** (Brazilian Portuguese,
+  English, Spanish, French, German, Italian)
+- Boot logos, title-screen **attract demo** and a **contributors' credits roll**
+- **On-device disc image extraction**: the PSP prepares the assets from the
+  user's own disc image, with language and HUD choice on first boot — no PC
+  step required
+- PSP-specific settings menu, plus debug/QA, telemetry, soak and PSPLink PRX
+  build modes for development
+- Uses the extended user memory partition (MEMSIZE) on PSP-2000/3000/Go
+
+Requirements: PSP-2000, PSP-3000 or PSP Go with custom firmware or HEN, an
+NTSC-U (SLUS-00684) disc image, and ~1.3 GB free during install (~600 MB
+after). The PSP-1000 does not have enough memory and is not supported. Install
+package and full notes: `dist/psp-release/` (beta 1).
+
+### macOS — Metal Edition
+
+A native Apple Silicon (`arm64`) build rendering through a dedicated **Metal
+backend** (no OpenGL translation layer), with the full desktop feature set:
+
+- Native **Metal** renderer written against `pddi` (shaders compiled at
+  runtime, MSAA, dynamic textures, ImGui overlays)
+- Everything from [Enhancements](#enhancements): HOR+ widescreen, high
+  resolution rendering, dynamic shadows, DualSense/DualShock support with
+  light bar, keyboard and mouse, all localizations, `.srt` movie subtitles
+- Same disc-image extraction flow as Windows/Linux (`discimage/` folder)
+- Deterministic `--autotest` harness with screenshot capture through the
+  Metal readback path, used for renderer regression testing
+
+To build, see the [build guide](docs/BUILDING.md) (`premake5 gmake2` +
+`make config=release`).
 
 ## Legal and Asset Notice
 

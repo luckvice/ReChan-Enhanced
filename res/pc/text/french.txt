@@ -173,7 +173,7 @@ Créateur de ReChan : rétro-ingénierie, réimplémentation du jeu et version P
 Traduction portugaise, sous-titres des vidéos, chargement et sauvegarde depuis les menus et corrections de la collision des portes.
 
 [FE_CR_LUCK]
-Version macOS avec le moteur de rendu Metal et le portage PSP Edition.
+Version macOS avec le moteur de rendu Metal et le portage RE:Chan HD Edition.
 
 [FE_CR_THANKS]
 Merci d'avoir joué !
