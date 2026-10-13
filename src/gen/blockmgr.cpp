@@ -440,7 +440,18 @@ bool BlockManager::InActiveList(u32 blockNum) const {
 }
 
 bool BlockManager::IsVisualOnlyBlock(u32 blockNum) const {
-#if FIX_ASPECT_RATIO
+#if defined(RC_PLATFORM_PSP)
+    // PSP guard (Re:Chain PSP Edition): the console ships at a fixed 16:9, so
+    // the visual-only test below would be active everywhere. On hardware that
+    // freezes humanoids mid-fight as display statues (they stay in the draw
+    // list but leave the active list) and drains EnemyGenerator budgets,
+    // because the demote path removes them from their ActiveZone without a
+    // death, so generators re-arm and spend their total on ghosts. Keep the
+    // PSX delete-on-deactivate behaviour on PSP instead: off-active-list
+    // things unload their model and free the zone slot for real respawns.
+    (void)blockNum;
+    return false;
+#elif FIX_ASPECT_RATIO
     const f32 aspectRatio = g_display ? g_display->GetAspectRatio() : DEFAULT_ASPECT_RATIO;
     if (aspectRatio <= DEFAULT_ASPECT_RATIO + 0.001f) {
         return false;

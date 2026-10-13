@@ -4877,17 +4877,21 @@ void World::UploadToVRAM(s16 x, s16 y, s16 w, s16 h, const u8* raw) {
     }
     vram.Upload(x, y, w, h, raw);
 
+#if !defined(RC_PLATFORM_PSP)
     // PSX LoadImage takes effect immediately, so a CLUT written mid-frame is
     // live for the primitives drawn after it. PaletteData::TransferVram runs
     // from WEffect::Display, i.e. after World::Render already flushed, so
     // deferring this to the next frame would leave every palette-cycled
     // surface a frame behind. The rect is small (a CLUT is 256x1), so push it
     // now rather than coalescing.
+    // PSP keeps the Beta 1 flow: the renderer consumes palettes on demand at
+    // draw time, and the immediate flush perturbed its GU scheduling.
     if (vramHandle) {
         MarkVRAMDirtyRect(x, y, w, h);
         FlushDirtyVRAM();
         return;
     }
+#endif
 
     // No GPU texture yet; the pending rect is folded into the initial upload.
     MarkVRAMDirtyRect(x, y, w, h);

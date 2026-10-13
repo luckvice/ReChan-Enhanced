@@ -451,11 +451,17 @@ static void CaptureHumanoidAttackJointsLoop(ccList& list) {
         if (hm && hm->animMatrices) {
             hm->animMatrices->Swap();
             hm->CaptureAttackJointMatrices();
-
+#if !defined(RC_PLATFORM_PSP)
+            // PSP guard (Re:Chain PSP Edition): resetting the attack joint
+            // here, in the middle of the logic frame, left attack collision
+            // reading index -1 on hardware (empty hitboxes). The PSX-style
+            // reset stays in Humanoid::Draw on PSP, where it ran before the
+            // port.
             // PSX did this in Draw right after the capture.
             Humanoid* humanoid = static_cast<Humanoid*>(thing);
             humanoid->attackJointIndex = -1;
             humanoid->UpdateCollisionBoundsFromJoints();
+#endif
         }
     }
 }
