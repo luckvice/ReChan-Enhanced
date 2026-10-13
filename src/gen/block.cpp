@@ -430,7 +430,7 @@ u32 Block::GetPrevBlockNumber() const {
 // PSX: calls SyncCamView, TransMatrix with drawPos, iterates texPageFrames,
 //      updates UVPrimData/CBVPrimData, then RP_ZCullGClip or RP_ZCullGMFog.
 // PC: set world matrix from drawPos, draw the prim buffer.
-bool Block::Draw(const LVector* drawPos) {
+bool Block::Draw(const LVector* drawPos, bool updateDynamicData) {
     MARKFUNCTION(0x800530F8);
 
 #if defined(PSP_STAGE_DIAGNOSTIC)
@@ -470,14 +470,14 @@ bool Block::Draw(const LVector* drawPos) {
     p3d::context->SetCullMode(PDDI_CULL_NONE);
 
     PspPerf::Trace("block draw: uv begin");
-    const bool uvUpdated = UpdateUVPrimData(blockNum, primGeom);
+    const bool uvUpdated = updateDynamicData && UpdateUVPrimData(blockNum, primGeom);
 #if defined(PSP_STAGE_DIAGNOSTIC)
     if (pspBlockDrawId < 32u) {
         Log::Get().LogMessage("[PSP Block] after uv #%lu block=%u",
             static_cast<unsigned long>(pspBlockDrawId), static_cast<unsigned>(blockNum));
     }
 #endif
-    const bool cbvUpdated = UpdateCBVPrimData(blockNum, primGeom);
+    const bool cbvUpdated = updateDynamicData && UpdateCBVPrimData(blockNum, primGeom);
 #if defined(RC_PLATFORM_PSP)
     if ((uvUpdated || cbvUpdated)
         && !UpdatePspPrimGeomDynamicData(primGeom, uvUpdated, cbvUpdated)) {

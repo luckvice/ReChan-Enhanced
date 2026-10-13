@@ -34,6 +34,13 @@ struct PspRainVertex {
     s16 x, y, z;
     s16 pad;
 };
+// Puddle vertex: UVs (0..1 of a 256x256 texture) into the reflection target.
+struct PspReflectVertex {
+    float u, v;
+    u32 color;
+    s16 x, y, z;
+    s16 pad;
+};
 
 // PSX packet geometry is authored with byte UVs. Keep the UV lanes as native
 // 16-bit GU coordinates while retaining float positions: the latter avoids
@@ -294,6 +301,26 @@ bool UpdatePspPrimBufferDynamicVertices(pddiPrimBuffer* buffer,
 // the GE may read it (the frame it is drawn in).
 void DrawPspRainLines(const Mat4& rainWorld, const PspRainVertex* vertices,
                       const u32 (*runs)[2], u32 runCount);
+// Rain reflection: the draws between Begin and End go to a quarter-screen
+// RGB565 target with the mirrored view and the oblique projection. The GE
+// drops what falls behind clip z = 0, which that projection puts on the floor
+// plane; its depth grows with distance, so the pass tests LEQUAL against a
+// far clear. Begin
+// returns false when the pass cannot run (no target, list closed). The pass
+// has its own depth buffer, so it can run after the scene. End restores the
+// scene's colour and depth buffers, viewport, scissor and matrices.
+bool BeginPspReflectionPass(const Mat4& mirroredView, const Mat4& obliqueProjection);
+#if defined(PSP_RAIN_REFLECTION_DEBUG)
+void DrawPspReflectionDebug();
+#endif
+void EndPspReflectionPass();
+// Draws indexed floor triangles textured with the reflection target, tinted
+// by the vertex colour and mixed over the ground by its alpha, depth-tested
+// like floor decals. The vertices and indices are copied to the display list.
+void DrawPspReflectionPatches(const Mat4& world, const PspReflectVertex* vertices, u32 vertexCount,
+                              const u16* indices, u32 indexCount);
+// Adds `colour` (ABGR) over the whole screen (rain lightning), before the HUD.
+void DrawPspScreenFlash(u32 colour);
 // Minimum display refreshes per presented frame (1 = up to 60 fps, 2 = a
 // steady 30 fps for cinema mode); clamped to 1..4.
 void SetPspSwapInterval(u32 refreshes);
@@ -584,9 +611,17 @@ public:
     void DrawVRAMQuad(u32 handle, u16 tpage, u16 cba,
                       float x, float y, float w, float h,
                       float u0, float v0, float u1, float v1, pddiColour color);
-    // See DrawPspRainLines.
+    // See DrawPspRainLines and the reflection functions below it.
     void DrawRainGeometry(const Mat4& rainWorld, int primitive, const PspRainVertex* vertices,
                           const u32 (*runs)[2], u32 runCount);
+    bool BeginReflectionPass(const Mat4& mirroredView, const Mat4& obliqueProjection);
+    void DrawScreenFlash(u32 colour);
+#if defined(PSP_RAIN_REFLECTION_DEBUG)
+    void DrawReflectionDebug();
+#endif
+    void EndReflectionPass();
+    void DrawReflectionPatches(const Mat4& world, const PspReflectVertex* vertices,
+                               u32 vertexCount, const u16* indices, u32 indexCount);
 
 private:
     friend class pspDisplay;
@@ -648,6 +683,10 @@ private:
     bool lastClutWordZeroKey = false;
     bool lastClutBlend = false;
     bool worldMirror = false;
+    // Rain reflection pass (BeginReflectionPass..EndReflectionPass).
+    bool inReflectionPass = false;
+    Mat4 reflectionSavedView;
+    Mat4 reflectionSavedProjection;
     bool zBufferEnabled = true;
     bool polygonOffsetEnabled = false;
     u32 polygonOffset = 0;

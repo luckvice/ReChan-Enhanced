@@ -733,6 +733,7 @@ void WriteReportTo(const char* path, u32 scenario, s32 level) {
         "ram_page_binds_avg", "geo_light_avg_us", "model_shadow_avg_us",
         "vertex_colour_uploads_avg", "vertex_uploads_unkept_avg", "vertex_uploads_changed_avg",
         "rain_avg_us", "rain_columns_avg", "rain_roofed_columns_avg", "rain_ceiling_queries_avg",
+        "rain_reflection_avg_us", "rain_puddles_avg",
         "additive_draws_avg", "additive_indices_avg"
     };
     static_assert(sizeof(rendererNames) / sizeof(rendererNames[0])

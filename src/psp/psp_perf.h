@@ -67,6 +67,9 @@ enum class RendererCounter : u32 {
     // Phase 1 rain (PspRain::Draw), all of its layers; rain columns drawn,
     // columns in view under a roof (no rain) and collision ceiling queries.
     RainUs, RainColumns, RainRoofedColumns, RainCeilingQueries,
+    // The mirrored block pass of the rain reflection (World render) and the
+    // puddles drawn.
+    RainReflectionUs, RainPuddles,
     // Scene buffers drawn with additive blending (glow) and their indices.
     AdditiveDraws, AdditiveIndices,
     Count

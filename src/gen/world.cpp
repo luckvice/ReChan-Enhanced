@@ -5378,6 +5378,7 @@ void World::DrawEverythingHandler(const LVector* playerPos) {
     }
 #endif
 
+
     // Pass 1: render visible block entities + geometry.
 #if defined(RC_PLATFORM_PSP) && defined(PSP_PERF_TELEMETRY)
     PspPerf::Trace("world render: pass1 begin");
@@ -5638,6 +5639,35 @@ void World::DrawEverythingHandler(const LVector* playerPos) {
     p3d::context->EnableZBuffer(true);
     p3d::context->SetDepthClamp(false);
 
+#if defined(RC_PLATFORM_PSP)
+    // Phase 1 rain: the block geometry mirrored in the wet floor, drawn
+    // into the reflection target after the scene (whose pass animated it).
+    if (PspRain::BeginReflection(GetCurLevelID())) {
+        PspPerf::ScopeTimer reflectionTimer(PspPerf::RendererCounter::RainReflectionUs);
+        // The draw array runs farthest first: mirror the nearest blocks.
+        u32 mirrored = 0;
+        for (u32 i = visibleCount; i-- > 0 && mirrored < PspRain::ReflectionBlockLimit();) {
+            DrawEntry& entry = drawArray[i];
+            if (!blockMgr.InDrawList(entry.block->blockNum)) continue;
+            ++mirrored;
+            LVector localPos;
+            localPos.x = entry.block->posX;
+            localPos.y = entry.block->posY;
+            localPos.z = entry.block->posZ;
+            OffsetToPreventSeams(localPos, *playerPos);
+            p3d::context->SetWorldMatrix(passBaseWorld);
+            p3d::context->SetVRAMHandle(vramHandle);
+            p3d::context->SetTexInfoOverride(false, 0);
+            p3d::context->SetBlendMode(PDDI_BLEND_NONE);
+            p3d::context->SetCullMode(PDDI_CULL_NONE);
+            // The scene pass already animated these blocks this frame:
+            // patching a buffer the GE has read would force a sync.
+            entry.block->Draw(&localPos, false);
+        }
+        PspRain::EndReflection();
+        p3d::context->SetWorldMatrix(passBaseWorld);
+    }
+#endif
 #if defined(RC_PLATFORM_PSP)
     // Phase 1 rain, over the scene and its effects.
     PspRain::Draw(GetCurLevelID(), passBaseWorld);

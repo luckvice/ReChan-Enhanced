@@ -87,7 +87,10 @@ struct Block {
     bool PointInBlock(const LVector* pt) const;                 // 0x80053024
     u32 GetNextBlockNumber() const;                             // 0x800530B0
     u32 GetPrevBlockNumber() const;                             // 0x800530D4
-    bool Draw(const LVector* drawPos);                          // 0x800530F8
+    // updateDynamicData false: draw the geometry as it is, without this frame's
+    // UV/colour animation (a second draw in the same frame, e.g. the PSP rain
+    // reflection: patching a buffer the GE already read this frame forces a sync).
+    bool Draw(const LVector* drawPos, bool updateDynamicData = true);                          // 0x800530F8
     void LoadPrim(const u8* primData, u32 primSize);            // 0x8005328C
     void Destroy();
 };

@@ -25,7 +25,8 @@ namespace PspRain {
 
 namespace {
 
-u32 s_layers = 0;
+// Every layer by default; the benchmark picks its own per scenario.
+u32 s_layers = kConfigLayers[kConfigCount - 1];
 
 // The rain lives in a block of 2x2 tiles of kTile around the point ahead of
 // the camera, split into 8x8 columns of kCell. The vertex arrays hold the
@@ -82,6 +83,78 @@ constexpr s32 kRefloorThreshold = 384;
 constexpr s32 kNoCeiling = 0x7FFFFFFF;
 enum CoverState : u8 { CoverUnknown, CoverOpen, CoverRoofed };
 
+// Puddles: about kPuddleChance of the 512-unit cells hold one, its place,
+// size and outline taken from a hash of the cell, so it never moves. A puddle
+// only lies on flat ground at Jackie's level (the collision floor at its
+// centre within kPuddleLevelTolerance of his) and out in the open.
+//
+// Reflection: the nearest blocks' geometry is drawn a second time, mirrored
+// in Jackie's floor, into a quarter-screen target, and the puddles show it:
+// their UVs are their own screen position, since a point on the mirror plane
+// projects to the same place in both views. The oblique projection's clip
+// plane sits kReflectionClearance above the floor, so the floor itself (and
+// anything below it) never enters the reflection.
+constexpr u32 kPuddleChance = 100;        // percent of the cells
+constexpr s32 kPuddleMinRadius = 140;
+constexpr s32 kPuddleRadiusRange = 140;
+// Centres stay this far inside the cell; a large puddle may spill over.
+constexpr s32 kPuddleMargin = 100;
+constexpr s32 kPuddleLevelTolerance = 48;
+constexpr u32 kPuddleRim = 8;              // outline vertices
+constexpr u32 kPuddleVertices = 1 + 2 * kPuddleRim;
+constexpr u32 kPuddleIndices = kPuddleRim * 3 + kPuddleRim * 6;
+// Inside, the reflection covers this much of the ground; the rim fades out.
+constexpr u32 kPuddleCoreAlpha = 0x9C;
+// The reflection seen in a puddle is a little darker than the scene.
+constexpr u32 kPuddleTint = 0xC8;
+constexpr f32 kReflectionClearance = 8.0f;
+// Scales the pass's depth: heights up to 1/kReflectionDepthScale times their
+// distance stay inside the depth range.
+constexpr f32 kReflectionDepthScale = 0.5f;
+// Only the nearest visible blocks are mirrored: they are what the puddles
+// near the camera show.
+constexpr u32 kReflectionBlocks = 6;
+
+struct Puddle {
+    s32 centreX, centreZ;
+    s32 radius;
+    u32 shapeSeed;
+};
+
+// The cell's puddle, if it has one.
+bool CellPuddle(s32 cellX, s32 cellZ, Puddle* puddle) {
+    u32 hash = static_cast<u32>(cellX) * 73856093u ^ static_cast<u32>(cellZ) * 19349663u ^ 0x50554444u;
+    hash = (hash ^ (hash >> 13)) * 0x5bd1e995u;
+    hash ^= hash >> 15;
+    if (hash % 100u >= kPuddleChance) return false;
+    const s32 span = kCell - 2 * kPuddleMargin;
+    puddle->centreX = cellX * kCell + kPuddleMargin + static_cast<s32>((hash >> 8) % static_cast<u32>(span));
+    puddle->centreZ = cellZ * kCell + kPuddleMargin + static_cast<s32>((hash >> 16) % static_cast<u32>(span));
+    puddle->radius = kPuddleMinRadius + static_cast<s32>((hash >> 4) % static_cast<u32>(kPuddleRadiusRange));
+    puddle->shapeSeed = hash;
+    return true;
+}
+
+// Lightning: a strike every kStrikeMin..kStrikeMin + kStrikeRange seconds
+// (the first one sooner) flashes the scene, under the HUD, in a cold white:
+// a bright flicker, a short gap, a second flash and a fade. Only on the
+// street; the effect's own random sequence picks the times.
+constexpr f32 kStrikeMin = 6.0f;
+constexpr f32 kStrikeRange = 10.0f;
+constexpr f32 kFirstStrikeMin = 2.0f;
+constexpr f32 kFirstStrikeRange = 4.0f;
+constexpr f32 kFlashR = 0.55f, kFlashG = 0.60f, kFlashB = 0.72f;
+
+// Flash strength `seconds` into a strike (0 once it is over).
+f32 StrikeIntensity(f32 seconds) {
+    if (seconds < 0.0f) return 0.0f;
+    if (seconds < 0.06f) return 1.0f;
+    if (seconds < 0.12f) return 0.12f;
+    if (seconds < 0.22f) return 0.75f;
+    const f32 fade = 1.0f - (seconds - 0.22f) / 0.5f;
+    return fade > 0.0f ? 0.75f * fade * fade : 0.0f;
+}
+
 constexpr u32 Colour(f32 r, f32 g, f32 b) {
     return 0xFF000000u | (static_cast<u32>(b * 255.0f) << 16)
         | (static_cast<u32>(g * 255.0f) << 8) | static_cast<u32>(r * 255.0f);
@@ -97,11 +170,25 @@ f32 s_fall = 0.0f;
 f32 s_splashClock = 0.0f;
 
 u8 s_cover[kColumns] = {};
+// Collision floor under the column's puddle (kNoPuddleFloor: none, or not
+// asked yet); a puddle shows while it is at Jackie's level.
+constexpr s32 kNoPuddleFloor = static_cast<s32>(0x80000001);
+s32 s_puddleFloor[kColumns] = {};
+// Puddles drawn last frame: the mirrored pass only runs when there were some.
+u32 s_lastPuddles = 0;
 s32 s_coverCellX = 0;
 s32 s_coverCellZ = 0;
 s32 s_coverFloor = 0;
 bool s_coverValid = false;
 u32 s_coverCursor = 0;
+bool s_reflectionDrawn = false;
+// Floor of the image in the reflection target, or kNoReflectionImage.
+constexpr s32 kNoReflectionImage = static_cast<s32>(0x80000000);
+s32 s_reflectionImageFloor = kNoReflectionImage;
+u32 s_reflectionFrame = 0;
+f32 s_nextStrike = 4.0f;   // seconds until the next strike
+f32 s_strike = -1.0f;      // seconds into the current strike (< 0: none)
+u32 s_lightningSeed = 0x544855u;
 
 // The effect's own generator: the game's random sequences stay untouched.
 u32 NextRandom(u32& state) {
@@ -202,6 +289,7 @@ s32 FloorDiv(s32 value, s32 divisor) {
 void MoveCoverWindow(s32 cellX, s32 cellZ, s32 floor) {
     if (!s_coverValid || std::abs(floor - s_coverFloor) > kRefloorThreshold) {
         std::fill(std::begin(s_cover), std::end(s_cover), static_cast<u8>(CoverUnknown));
+        std::fill(std::begin(s_puddleFloor), std::end(s_puddleFloor), kNoPuddleFloor);
         s_coverCellX = cellX;
         s_coverCellZ = cellZ;
         s_coverFloor = floor;
@@ -210,6 +298,7 @@ void MoveCoverWindow(s32 cellX, s32 cellZ, s32 floor) {
     }
     if (cellX == s_coverCellX && cellZ == s_coverCellZ) return;
     u8 moved[kColumns];
+    s32 movedFloor[kColumns];
     for (s32 cz = 0; cz < kBlockCells; ++cz) {
         for (s32 cx = 0; cx < kBlockCells; ++cx) {
             const s32 oldX = cellX + cx - s_coverCellX;
@@ -217,24 +306,37 @@ void MoveCoverWindow(s32 cellX, s32 cellZ, s32 floor) {
             const bool shared = oldX >= 0 && oldX < kBlockCells && oldZ >= 0 && oldZ < kBlockCells;
             moved[cz * kBlockCells + cx] = shared ? s_cover[oldZ * kBlockCells + oldX]
                                                   : static_cast<u8>(CoverUnknown);
+            movedFloor[cz * kBlockCells + cx] = shared ? s_puddleFloor[oldZ * kBlockCells + oldX]
+                                                       : kNoPuddleFloor;
         }
     }
     std::copy(std::begin(moved), std::end(moved), std::begin(s_cover));
+    std::copy(std::begin(movedFloor), std::end(movedFloor), std::begin(s_puddleFloor));
     s_coverCellX = cellX;
     s_coverCellZ = cellZ;
 }
 
-bool ColumnRoofed(s32 cellX, s32 cellZ, s32 floor) {
+// Asks the collision about a column: true when a ceiling covers it. The
+// probe stands on the cell's puddle when it has one, and *puddleFloor gets
+// the floor there (kNoPuddleFloor without a puddle).
+bool ColumnRoofed(s32 cellX, s32 cellZ, s32 floor, s32* puddleFloor) {
     LVector probe = {};
     probe.x = cellX * kCell + kCell / 2;
     probe.y = floor + kCeilingProbeAboveFloor;
     probe.z = cellZ * kCell + kCell / 2;
+    Puddle puddle = {};
+    const bool hasPuddle = CellPuddle(cellX, cellZ, &puddle);
+    if (hasPuddle) {
+        probe.x = puddle.centreX;
+        probe.z = puddle.centreZ;
+    }
     s32 floorHeight = 0;
     s32 ceilingHeight = kNoCeiling;
     LVector floorNormal = {};
     LVector ceilingNormal = {};
     CollisionSector::GetWorldFloorAndCeilingHeight(floorHeight, ceilingHeight,
         floorNormal, ceilingNormal, probe, 64);
+    *puddleFloor = hasPuddle ? floorHeight : kNoPuddleFloor;
     return ceilingHeight != kNoCeiling && ceilingHeight > probe.y
         && ceilingHeight - probe.y < kMaxCeilingHeight;
 }
@@ -248,7 +350,7 @@ void UpdateCover(const bool* visible) {
         if (s_cover[i] != CoverUnknown || !visible[i]) continue;
         const s32 cellX = s_coverCellX + static_cast<s32>(i % kBlockCells);
         const s32 cellZ = s_coverCellZ + static_cast<s32>(i / kBlockCells);
-        s_cover[i] = ColumnRoofed(cellX, cellZ, s_coverFloor) ? CoverRoofed : CoverOpen;
+        s_cover[i] = ColumnRoofed(cellX, cellZ, s_coverFloor, &s_puddleFloor[i]) ? CoverRoofed : CoverOpen;
         ++queries;
     }
     if (queries < kCeilingQueriesPerFrame) {
@@ -257,7 +359,8 @@ void UpdateCover(const bool* visible) {
             if (s_cover[column] == CoverUnknown) continue;
             const s32 cellX = s_coverCellX + static_cast<s32>(column % kBlockCells);
             const s32 cellZ = s_coverCellZ + static_cast<s32>(column / kBlockCells);
-            s_cover[column] = ColumnRoofed(cellX, cellZ, s_coverFloor) ? CoverRoofed : CoverOpen;
+            s_cover[column] = ColumnRoofed(cellX, cellZ, s_coverFloor, &s_puddleFloor[column])
+                ? CoverRoofed : CoverOpen;
             s_coverCursor = (column + 1u) % kColumns;
             ++queries;
             break;
@@ -292,7 +395,182 @@ Mat4 BlockWorld(const Mat4& passWorld, f32 x, f32 y, f32 z) {
     return passWorld * local;
 }
 
+// The puddles of the open columns, textured with this frame's reflection;
+// without an image (draw false) they are only counted, which decides whether
+// the next frame renders one.
+void DrawPuddles(const bool* open, s32 originX, s32 originZ, s32 floor, const Mat4& passWorld,
+                 bool draw) {
+    static PspReflectVertex vertices[kColumns * kPuddleVertices];
+    static u16 indices[kColumns * kPuddleIndices];
+    const Mat4 viewProjection = p3d::context->GetProjectionMatrix()
+        * p3d::context->GetViewMatrix() * passWorld;
+    const f32* m = viewProjection.m;
+    const f32 floorY = static_cast<f32>(floor);
+    u32 vertexCount = 0;
+    u32 indexCount = 0;
+    const s32 originCellX = originX / kCell;
+    const s32 originCellZ = originZ / kCell;
+    for (u32 column = 0; column < kColumns; ++column) {
+        if (!open[column] || s_puddleFloor[column] == kNoPuddleFloor
+            || std::abs(s_puddleFloor[column] - floor) > kPuddleLevelTolerance) {
+            continue;
+        }
+        Puddle puddle = {};
+        if (!CellPuddle(originCellX + static_cast<s32>(column % kBlockCells),
+                        originCellZ + static_cast<s32>(column / kBlockCells), &puddle)) {
+            continue;
+        }
+        ++s_lastPuddles;
+        if (!draw) continue;
+        // Centre, then the core ring, then the rim, around an uneven outline.
+        f32 ringX[kPuddleRim];
+        f32 ringZ[kPuddleRim];
+        u32 seed = puddle.shapeSeed;
+        for (u32 k = 0; k < kPuddleRim; ++k) {
+            const f32 angle = 6.2831853f * (static_cast<f32>(k) + 0.3f * static_cast<f32>(NextRandom(seed) % 100) / 100.0f)
+                / static_cast<f32>(kPuddleRim);
+            const f32 reach = static_cast<f32>(puddle.radius) * (0.7f + static_cast<f32>(NextRandom(seed) % 45) / 100.0f);
+            ringX[k] = std::cos(angle) * reach;
+            ringZ[k] = std::sin(angle) * 0.75f * reach;
+        }
+        const u32 base = vertexCount;
+        bool usable = true;
+        for (u32 v = 0; v < kPuddleVertices && usable; ++v) {
+            f32 dx = 0.0f, dz = 0.0f;
+            u32 alpha = kPuddleCoreAlpha;
+            if (v >= 1 && v <= kPuddleRim) {
+                dx = ringX[v - 1] * 0.6f;
+                dz = ringZ[v - 1] * 0.6f;
+            }
+            else if (v > kPuddleRim) {
+                dx = ringX[v - 1 - kPuddleRim];
+                dz = ringZ[v - 1 - kPuddleRim];
+                alpha = 0;
+            }
+            const f32 x = static_cast<f32>(puddle.centreX) + dx;
+            const f32 z = static_cast<f32>(puddle.centreZ) + dz;
+            // On the puddle's own floor, a little off Jackie's at most.
+            const f32 y = static_cast<f32>(s_puddleFloor[column]);
+            const f32 cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+            const f32 cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+            const f32 cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+            if (cw <= 1.0f) { usable = false; break; }
+            PspReflectVertex& vertex = vertices[vertexCount++];
+            // Screen position in the half-size target of a 256x256 texture.
+            vertex.u = (120.0f + 120.0f * cx / cw) / 256.0f;
+            vertex.v = (68.0f - 68.0f * cy / cw) / 256.0f;
+            vertex.color = (alpha << 24) | (kPuddleTint << 16) | (kPuddleTint << 8) | kPuddleTint;
+            vertex.x = static_cast<s16>(static_cast<s32>(x) - originX);
+            vertex.y = static_cast<s16>(s_puddleFloor[column] - floor);
+            vertex.z = static_cast<s16>(static_cast<s32>(z) - originZ);
+            vertex.pad = 0;
+        }
+        if (!usable) {
+            vertexCount = base;
+            continue;
+        }
+        for (u32 k = 0; k < kPuddleRim; ++k) {
+            const u16 next = static_cast<u16>((k + 1) % kPuddleRim);
+            const u16 core = static_cast<u16>(base + 1 + k);
+            const u16 coreNext = static_cast<u16>(base + 1 + next);
+            const u16 rim = static_cast<u16>(base + 1 + kPuddleRim + k);
+            const u16 rimNext = static_cast<u16>(base + 1 + kPuddleRim + next);
+            const u16 tri[9] = { static_cast<u16>(base), core, coreNext,
+                                 core, rim, coreNext, coreNext, rim, rimNext };
+            std::copy(tri, tri + 9, indices + indexCount);
+            indexCount += 9;
+        }
+    }
+    PspPerf::CountRenderer(PspPerf::RendererCounter::RainPuddles, indexCount / kPuddleIndices);
+    if (indexCount == 0) return;
+    DrawPspReflectionPatches(BlockWorld(passWorld, static_cast<f32>(originX), floorY + 1.0f,
+                                        static_cast<f32>(originZ)),
+                             vertices, vertexCount, indices, indexCount);
+}
+
+void UpdateLightning(f32 dt) {
+    if (s_strike >= 0.0f) {
+        s_strike += dt;
+        if (s_strike > 0.22f && StrikeIntensity(s_strike) <= 0.0f) s_strike = -1.0f;
+        return;
+    }
+    s_nextStrike -= dt;
+    if (s_nextStrike > 0.0f) return;
+    s_strike = 0.0f;
+    s_nextStrike = kStrikeMin
+        + kStrikeRange * static_cast<f32>(NextRandom(s_lightningSeed) % 1000u) / 1000.0f;
+}
+
+void DrawLightning() {
+    if (!(s_layers & LayerLightning)) return;
+    const f32 intensity = StrikeIntensity(s_strike);
+    if (intensity <= 0.0f) return;
+    DrawPspScreenFlash(Colour(kFlashR * intensity, kFlashG * intensity, kFlashB * intensity));
+}
+
 } // namespace
+
+bool BeginReflection(s32 levelId) {
+    s_reflectionDrawn = false;
+    if (levelId != 1 || !(s_layers & LayerPuddles) || !p3d::context) {
+        s_reflectionImageFloor = kNoReflectionImage;
+        return false;
+    }
+    if (rsGetAmbienceSpace() != kStreetAmbienceSpace) {
+        s_reflectionImageFloor = kNoReflectionImage;
+        return false;
+    }
+    s32 floor = 0;
+    if (!PlayerFloor(&floor)) return false;
+    // An image is only shown the frame it is drawn. No puddle in view last
+    // frame: skip the pass (a puddle coming into view shows from the next).
+    s_reflectionImageFloor = kNoReflectionImage;
+    if (s_lastPuddles == 0) return false;
+#if defined(PSP_RAIN_REFLECTION_30HZ)
+    // The mirrored pass every other frame; the frame between shows the last
+    // image. Measured slower: the page and CLUT caches thrash between the
+    // two views (palette uploads doubled).
+    s_reflectionFrame ^= 1u;
+    if (s_reflectionFrame != 0 && s_reflectionImageFloor == floor) return false;
+#endif
+    const Mat4& view = p3d::context->GetViewMatrix();
+    const Mat4& projection = p3d::context->GetProjectionMatrix();
+
+    // Mirror in the floor plane y = floor: y' = 2 * floor - y.
+    Mat4 mirror;
+    mirror.m[5] = -1.0f;
+    mirror.m[13] = 2.0f * static_cast<f32>(floor);
+    const Mat4 mirroredView = view * mirror;
+
+    // Keep the mirror images of what stands above the floor: in the real
+    // camera's eye space they lie beyond the plane y = floor - clearance,
+    // whose normal is the view's image of world -Y. (A point on the plane has
+    // the same eye coordinates in both views.)
+    const f32 nx = -view.m[4];
+    const f32 ny = -view.m[5];
+    const f32 nz = -view.m[6];
+    const f32 nw = view.m[4] * view.m[12] + view.m[5] * view.m[13] + view.m[6] * view.m[14]
+        + static_cast<f32>(floor) - kReflectionClearance;
+    // The PSP GE drops what falls behind z = 0 in clip space (measured on a
+    // PSP-3000: a z = -w clip plane kept nothing). With the depth row a * C
+    // the clip plane is the floor, and depth grows with distance.
+    Mat4 oblique = projection;
+    oblique.m[2] = kReflectionDepthScale * nx;
+    oblique.m[6] = kReflectionDepthScale * ny;
+    oblique.m[10] = kReflectionDepthScale * nz;
+    oblique.m[14] = kReflectionDepthScale * nw;
+    s_reflectionDrawn = BeginPspReflectionPass(mirroredView, oblique);
+    if (s_reflectionDrawn) s_reflectionImageFloor = floor;
+    return s_reflectionDrawn;
+}
+
+void EndReflection() {
+    if (s_reflectionDrawn) EndPspReflectionPass();
+}
+
+u32 ReflectionBlockLimit() {
+    return kReflectionBlocks;
+}
 
 void SetLayers(u32 layers) {
     s_layers = layers;
@@ -301,6 +579,13 @@ void SetLayers(u32 layers) {
     s_fall = 0.0f;
     s_splashClock = 0.0f;
     s_coverValid = false;
+    s_reflectionImageFloor = kNoReflectionImage;
+    s_reflectionFrame = 0;
+    s_lastPuddles = 0;
+    s_lightningSeed = 0x544855u;  // "THU"
+    s_nextStrike = kFirstStrikeMin
+        + kFirstStrikeRange * static_cast<f32>(NextRandom(s_lightningSeed) % 1000u) / 1000.0f;
+    s_strike = -1.0f;
 }
 
 u32 GetLayers() {
@@ -308,12 +593,15 @@ u32 GetLayers() {
 }
 
 void Draw(s32 levelId, const Mat4& passWorld) {
+    s_lastPuddles = 0;
     if (levelId != 1 || s_layers == 0) {
         // Outside phase 1 the arrays are not needed.
         if (s_drops || s_splashes) ReleaseArrays();
         return;
     }
-    if (!p3d::context || !(s_layers & (LayerDrops | LayerSplashes))) return;
+    if (!p3d::context || !(s_layers & (LayerDrops | LayerSplashes | LayerPuddles | LayerLightning))) {
+        return;
+    }
     PspPerf::ScopeTimer timer(PspPerf::RendererCounter::RainUs);
     Camera* camera = g_display ? g_display->GetCamera() : nullptr;
     s32 floor = 0;
@@ -323,6 +611,7 @@ void Draw(s32 levelId, const Mat4& passWorld) {
     s_fall = std::fmod(s_fall + dt * kFallSpeed, static_cast<f32>(kTile));
     s_splashClock = std::fmod(s_splashClock + dt, 1024.0f);
     if (rsGetAmbienceSpace() != kStreetAmbienceSpace) return;
+    if (s_layers & LayerLightning) UpdateLightning(dt);
 
     const LVector& eye = camera->GetPosition();
     const LVector& target = camera->GetTargetPos();
@@ -364,8 +653,18 @@ void Draw(s32 levelId, const Mat4& passWorld) {
     }
     PspPerf::CountRenderer(PspPerf::RendererCounter::RainColumns, drawn);
     PspPerf::CountRenderer(PspPerf::RendererCounter::RainRoofedColumns, roofed);
-    if (drawn == 0) return;
+    if (drawn == 0) {
+        DrawLightning();
+        return;
+    }
 
+    // The wet floor first: the splashes and drops are drawn over it.
+    if (s_layers & LayerPuddles) {
+        DrawPuddles(open, originX, originZ, floor, passWorld, s_reflectionImageFloor == floor);
+#if defined(PSP_RAIN_REFLECTION_DEBUG)
+        DrawPspReflectionDebug();
+#endif
+    }
     u32 runs[kColumns][2];
     // Splashes on the floor: the 30 Hz tick picks the group.
     if (s_layers & LayerSplashes) {
@@ -384,7 +683,7 @@ void Draw(s32 levelId, const Mat4& passWorld) {
                                     static_cast<f32>(originY) - s_fall, static_cast<f32>(originZ)),
                          s_drops, runs, count);
     }
+    DrawLightning();
 }
-
 
 } // namespace PspRain

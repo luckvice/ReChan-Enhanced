@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 // src/psp/psp_rain.h. Offline only: read the reports after the run.
 export const PETALS = [0, 1, 2];
 export const CONFIG_LAYERS = [0, 1, 3, 7, 15];
-const LAYER_NAMES = ['gotas', 'respingos', 'reflexo das luzes', 'poças'];
+const LAYER_NAMES = ['gotas', 'respingos', 'poças com reflexo', 'relâmpagos'];
 
 export function parseReport(text) {
   return Object.fromEntries(text.split(/\r?\n/)

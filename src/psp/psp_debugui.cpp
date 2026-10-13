@@ -58,7 +58,12 @@ struct BenchmarkScenario {
     u32 rainConfig = 0;
 };
 
-#if defined(PSP_BENCH_RAIN)
+#if defined(PSP_BENCH_RAIN) && defined(PSP_BENCH_RAIN_QUICK)
+// Quick rain check: the first petal only, with the reflection layers.
+static constexpr BenchmarkScenario kScenarios[] = {
+    { 1, "CHINATOWN-P0", 0, 3 }, { 1, "CHINATOWN-P0", 0, 4 },
+};
+#elif defined(PSP_BENCH_RAIN)
 // Rain benchmark: phase 1 only, from the start of each of its three petals,
 // with every rain configuration (C0 = no rain). Every scenario reloads its
 // petal, so all of them start from the same state.

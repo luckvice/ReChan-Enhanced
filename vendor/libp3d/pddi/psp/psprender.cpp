@@ -232,6 +232,13 @@ constexpr u32 kFramebufferStride = kBufferWidth * kHeight * kFramebufferPixelByt
 constexpr u32 kFramebufferBytes = kFramebufferStride * kFramebufferCount;
 constexpr u32 kDepthBytes = kBufferWidth * kHeight * 2u;
 constexpr u32 kReservedEdramBytes = kFramebufferBytes + kDepthBytes;
+// Phase 1 rain reflection: the scene mirrored in the wet floor, rendered at a
+// quarter of the screen into its own RGB565 target (stride 256).
+constexpr int kReflectionWidth = kWidth / 2;
+constexpr int kReflectionHeight = kHeight / 2;
+constexpr int kReflectionStride = 256;
+constexpr u32 kReflectionBytes = kReflectionStride * kReflectionHeight * 2u;
+constexpr u32 kReflectionSkyColour = 0xff4a3a30;  // ABGR: dim blue-grey
 // Keep enough command-list headroom for a complete gameplay frame.  The
 // original 1 MiB list was reached by the real hub benchmark and caused about
 // five Finish/Sync fences per frame.  A 1.5 MiB resident list is still small
@@ -353,6 +360,10 @@ struct StaticPspVram {
     std::array<StaticPageSlot, PSP_VRAM_RGBA16_SLOTS> rgba16{};
     bool initialized = false;
     u32 allocatedBytes = 0;
+    // Relative eDRAM offsets of the rain reflection target and its own depth
+    // buffer (0: none).
+    u32 reflectionOffset = 0;
+    u32 reflectionDepthOffset = 0;
 };
 
 alignas(16) DisplayListStorage g_displayListStorage = {};
@@ -1659,6 +1670,11 @@ bool pspDisplay::InitDisplay(const pddiDisplayInit&) {
     reservePages(g_staticVram.t4, GU_PSM_T4, kPageSize * kPageSize / 2u);
     reservePages(g_staticVram.t8, GU_PSM_T8, kPageSize * kPageSize);
     reservePages(g_staticVram.rgba16, GU_PSM_5551, kPageSize * kPageSize * 2u);
+    if (2u * kReflectionBytes <= edramBytes - offset) {
+        g_staticVram.reflectionOffset = offset;
+        g_staticVram.reflectionDepthOffset = offset + kReflectionBytes;
+        offset += 2u * kReflectionBytes;
+    }
     g_staticVram.allocatedBytes = offset;
     g_staticVram.initialized = true;
     // The PSP SDK supports both next-HSync and next-VSync buffer changes.
@@ -2410,16 +2426,20 @@ void pspContext::Setup3DState() {
     GuDisable(GU_COLOR_TEST);
     GuDisable(GU_STENCIL_TEST);
     GuDisable(GU_COLOR_LOGIC_OP);
-    GuDisable(GU_CLIP_PLANES);
+    // The reflection pass clips at its oblique near plane (the floor).
+    if (inReflectionPass) GuEnable(GU_CLIP_PLANES);
+    else GuDisable(GU_CLIP_PLANES);
     if (kDitherCapability) GuEnable(GU_DITHER);
     GuAmbientColor(0xffffffff);
     SetBlend(blendMode);
     if (zBufferEnabled) GuEnable(GU_DEPTH_TEST);
     else GuDisable(GU_DEPTH_TEST);
-    GuDepthFunc(GU_GEQUAL);
+    // The reflection pass's oblique projection makes depth grow with distance.
+    GuDepthFunc(inReflectionPass ? GU_LEQUAL : GU_GEQUAL);
     GuDepthMask(zBufferEnabled && blendMode == PDDI_BLEND_NONE ? GU_FALSE : GU_TRUE);
     GuDepthOffset(polygonOffsetEnabled ? polygonOffset : 0);
-    switch (cullMode == PDDI_CULL_NONE ? PDDI_CULL_NONE
+    // The mirrored pass flips every winding: it draws both sides.
+    switch ((cullMode == PDDI_CULL_NONE || inReflectionPass) ? PDDI_CULL_NONE
                                        : (worldMirror ? PDDI_CULL_INVERTED : cullMode)) {
         case PDDI_CULL_NONE: GuDisable(GU_CULL_FACE); break;
         case PDDI_CULL_INVERTED: GuEnable(GU_CULL_FACE); GuFrontFace(GU_CCW); break;
@@ -2568,6 +2588,181 @@ void pspContext::DrawRainGeometry(const Mat4& rainWorld, int primitive,
     gu3DStateReady = false;
 }
 
+bool pspContext::BeginReflectionPass(const Mat4& mirroredView, const Mat4& obliqueProjection) {
+    if (!listOpen || inReflectionPass || !g_staticVram.initialized
+        || g_staticVram.reflectionOffset == 0 || g_staticVram.reflectionDepthOffset == 0) {
+        return false;
+    }
+    FlushQueuedOpaqueDraws();
+    if (pauseBackdropValid) ReleasePauseBackdrop();
+    EnsureListSpace(256u);
+    reflectionSavedView = view;
+    reflectionSavedProjection = projection;
+    view = mirroredView;
+    projection = obliqueProjection;
+    inReflectionPass = true;
+    sceGuDrawBufferList(GU_PSM_5650, reinterpret_cast<void*>(g_staticVram.reflectionOffset),
+                        kReflectionStride);
+    sceGuDepthBuffer(reinterpret_cast<void*>(g_staticVram.reflectionDepthOffset), kReflectionStride);
+    sceGuOffset(2048 - kReflectionWidth / 2, 2048 - kReflectionHeight / 2);
+    sceGuViewport(2048, 2048, kReflectionWidth, kReflectionHeight);
+    // The scissor is all that bounds the clear and the draws to the target.
+    sceGuScissor(0, 0, kReflectionWidth, kReflectionHeight);
+    // What the puddles show where nothing is mirrored: the glow of a night
+    // sky over the city, so they read as water rather than black stains.
+    sceGuClearColor(kReflectionSkyColour);
+    sceGuClearDepth(0xffff);
+    sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
+    gu3DStateReady = false;
+    pageBindingValid = false;
+    return true;
+}
+
+void pspContext::EndReflectionPass() {
+    if (!inReflectionPass) return;
+    FlushQueuedOpaqueDraws();
+    EnsureListSpace(256u);
+    inReflectionPass = false;
+    view = reflectionSavedView;
+    projection = reflectionSavedProjection;
+    sceGuDrawBufferList(kFramebufferPsm, reinterpret_cast<void*>(DrawFramebufferOffset()),
+                        kBufferWidth);
+    sceGuDepthBuffer(g_staticVram.depthBuffer, kBufferWidth);
+    sceGuOffset(2048 - kWidth / 2, 2048 - kHeight / 2);
+    sceGuViewport(2048, 2048, kWidth, kHeight);
+    sceGuScissor(scissorRect[0], scissorRect[1], scissorRect[2], scissorRect[3]);
+    gu3DStateReady = false;
+    pageBindingValid = false;
+}
+
+void pspContext::DrawReflectionPatches(const Mat4& world, const PspReflectVertex* vertices,
+                                       u32 vertexCount, const u16* indices, u32 indexCount) {
+    if (!listOpen || g_staticVram.reflectionOffset == 0 || !vertices || !indices
+        || vertexCount == 0 || indexCount < 3) {
+        return;
+    }
+    FlushQueuedOpaqueDraws();
+    EnsureListSpace(sizeof(PspReflectVertex) * vertexCount + sizeof(u16) * indexCount + 256u);
+    auto* vertexCopy = static_cast<PspReflectVertex*>(
+        AllocateListMemory(sizeof(PspReflectVertex) * vertexCount));
+    auto* indexCopy = static_cast<u16*>(AllocateListMemory(sizeof(u16) * ((indexCount + 1u) & ~1u)));
+    if (!vertexCopy || !indexCopy) return;
+    std::memcpy(vertexCopy, vertices, sizeof(PspReflectVertex) * vertexCount);
+    std::memcpy(indexCopy, indices, sizeof(u16) * indexCount);
+
+    const bool projectionChanged = LoadGumMatrix(GU_PROJECTION, projection);
+    const bool viewChanged = LoadGumMatrix(GU_VIEW, view);
+    const bool worldChanged = LoadGumMatrix(GU_MODEL, world);
+    if (projectionChanged || viewChanged || worldChanged) sceGumUpdateMatrix();
+
+    const auto edramBase = reinterpret_cast<std::uintptr_t>(sceGeEdramGetAddr());
+    GuEnable(GU_TEXTURE_2D);
+    GuTexMode(GU_PSM_5650, 0, 0, 0);
+    sceGuTexImage(0, 256, 256, kReflectionStride,
+                  reinterpret_cast<const void*>(edramBase + g_staticVram.reflectionOffset));
+    // The vertex colour tints the reflection; its alpha (the RGB565 target has
+    // none) says how much of the ground the reflection covers.
+    GuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+    GuTexFilter(GU_LINEAR, GU_LINEAR);
+    GuTexWrap(GU_CLAMP, GU_CLAMP);
+    sceGuTexScale(1.0f, 1.0f);
+    sceGuTexOffset(0.0f, 0.0f);
+    // The target was drawn earlier in this list: order the GE and drop stale
+    // texture-cache lines before sampling it.
+    sceGuTexSync();
+    sceGuTexFlush();
+    GuDisable(GU_ALPHA_TEST);
+    GuDisable(GU_CULL_FACE);
+    GuEnable(GU_DEPTH_TEST);
+    GuDepthFunc(GU_GEQUAL);
+    GuDepthMask(GU_TRUE);
+    // Flat on the floor: the same pull as the model shadows.
+    GuDepthOffset(32);
+    GuEnable(GU_BLEND);
+    GuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
+    GuDrawArray(GU_TRIANGLES,
+                GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_16BIT | GU_INDEX_16BIT | GU_TRANSFORM_3D,
+                static_cast<int>(indexCount), indexCopy, vertexCopy);
+    PspPerf::RecordDrawSubmission(indexCount);
+    pageBindingValid = false;
+    pageTexScaleValid = false;
+    gu3DStateReady = false;
+    SetBlend(blendMode);
+}
+
+#if defined(PSP_RAIN_REFLECTION_DEBUG)
+// Diagnostic: the reflection target, 1:1, in the top-left corner.
+void DrawPspReflectionDebug() {
+    pspContext* context = g_activeContext;
+    if (!context || g_staticVram.reflectionOffset == 0) return;
+    context->DrawReflectionDebug();
+}
+
+void pspContext::DrawReflectionDebug() {
+    if (!listOpen) return;
+    FlushQueuedOpaqueDraws();
+    EnsureListSpace(256u);
+    Setup2DState();
+    struct CopyVertex { u16 u, v; s16 x, y, z; };
+    auto* sprite = static_cast<CopyVertex*>(AllocateListMemory(sizeof(CopyVertex) * 2u));
+    if (!sprite) return;
+    sprite[0] = {0, 0, 0, 0, 0};
+    sprite[1] = {static_cast<u16>(kReflectionWidth), static_cast<u16>(kReflectionHeight),
+                 static_cast<s16>(kReflectionWidth), static_cast<s16>(kReflectionHeight), 0};
+    const auto edramBase = reinterpret_cast<std::uintptr_t>(sceGeEdramGetAddr());
+    GuDisable(GU_BLEND);
+    GuEnable(GU_TEXTURE_2D);
+    GuTexMode(GU_PSM_5650, 0, 0, 0);
+    sceGuTexImage(0, 256, 256, kReflectionStride,
+                  reinterpret_cast<const void*>(edramBase + g_staticVram.reflectionOffset));
+    GuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
+    GuTexFilter(GU_NEAREST, GU_NEAREST);
+    sceGuTexSync();
+    sceGuTexFlush();
+    GuDrawArray(GU_SPRITES, GU_TEXTURE_16BIT | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, nullptr, sprite);
+    SetBlend(blendMode);
+    pageBindingValid = false;
+    gu3DStateReady = false;
+}
+#endif
+
+bool BeginPspReflectionPass(const Mat4& mirroredView, const Mat4& obliqueProjection) {
+    return g_activeContext && g_activeContext->BeginReflectionPass(mirroredView, obliqueProjection);
+}
+
+void EndPspReflectionPass() {
+    if (g_activeContext) g_activeContext->EndReflectionPass();
+}
+
+void DrawPspReflectionPatches(const Mat4& world, const PspReflectVertex* vertices, u32 vertexCount,
+                              const u16* indices, u32 indexCount) {
+    if (g_activeContext) {
+        g_activeContext->DrawReflectionPatches(world, vertices, vertexCount, indices, indexCount);
+    }
+}
+
+void pspContext::DrawScreenFlash(u32 colour) {
+    if (!listOpen) return;
+    FlushQueuedOpaqueDraws();
+    EnsureListSpace(256u);
+    Setup2DState();
+    struct FlashVertex { u32 color; s16 x, y, z; s16 pad; };
+    auto* sprite = static_cast<FlashVertex*>(AllocateListMemory(sizeof(FlashVertex) * 2u));
+    if (!sprite) return;
+    sprite[0] = {colour, 0, 0, 0, 0};
+    sprite[1] = {colour, static_cast<s16>(kWidth), static_cast<s16>(kHeight), 0, 0};
+    GuDisable(GU_TEXTURE_2D);
+    GuEnable(GU_BLEND);
+    GuBlendFunc(GU_ADD, GU_FIX, GU_FIX, 0x00FFFFFF, 0x00FFFFFF);
+    GuDrawArray(GU_SPRITES, GU_COLOR_8888 | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, nullptr, sprite);
+    SetBlend(blendMode);
+    pageBindingValid = false;
+}
+
+void DrawPspScreenFlash(u32 colour) {
+    if (g_activeContext) g_activeContext->DrawScreenFlash(colour);
+}
+
 void DrawPspRainLines(const Mat4& rainWorld, const PspRainVertex* vertices,
                       const u32 (*runs)[2], u32 runCount) {
     if (g_activeContext) {
@@ -2636,7 +2831,7 @@ void pspContext::SetCullMode(pddiCullMode mode) {
     FlushQueuedOpaqueDraws();
     EnsureListSpace();
     cullMode = mode;
-    if (mode == PDDI_CULL_NONE) GuDisable(GU_CULL_FACE);
+    if (mode == PDDI_CULL_NONE || inReflectionPass) GuDisable(GU_CULL_FACE);
     else {
         GuEnable(GU_CULL_FACE);
         GuFrontFace(mode == PDDI_CULL_INVERTED ? GU_CCW : GU_CW);
