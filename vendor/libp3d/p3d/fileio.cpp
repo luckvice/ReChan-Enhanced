@@ -11,6 +11,9 @@
 #if defined(_WIN32)
 #define NOMINMAX
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <limits.h>
+#include <mach-o/dyld.h>
 #else
 #include <limits.h>
 #include <unistd.h>
@@ -355,6 +358,20 @@ namespace p3d::io {
         // anyway: the only caller (autoupdater.cpp) is compiled out whenever
         // RC_PLATFORM_NULL is set, which every current Switch build defines.
         return {};
+#elif defined(__APPLE__)
+        // /proc/self/exe is Linux-only; ask dyld for the image path and
+        // resolve it so a bin/rechan launched from anywhere still finds
+        // its shipped data directory.
+        char buf[PATH_MAX];
+        uint32_t size = sizeof(buf);
+        if (_NSGetExecutablePath(buf, &size) != 0) {
+            return {};
+        }
+        char real[PATH_MAX];
+        if (realpath(buf, real)) {
+            return std::string(real);
+        }
+        return std::string(buf);
 #else
         char buf[PATH_MAX];
         ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);

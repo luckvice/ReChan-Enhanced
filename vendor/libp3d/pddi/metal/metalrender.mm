@@ -1446,7 +1446,9 @@ bool mtDisplay::InitDisplay(const pddiDisplayInit& init) {
     CAMetalLayer* metalLayer = [CAMetalLayer layer];
     metalLayer.device = mtId(device);
     metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    metalLayer.framebufferOnly = YES;
+    // framebufferOnly forbids blitting/reading the drawable, which
+    // ReadBackBuffer needs for AutoTest screenshots.
+    metalLayer.framebufferOnly = NO;
     metalLayer.contentsScale = nswindow.backingScaleFactor;
     view.layer = metalLayer;
     layer = mtOwned(metalLayer);
@@ -1739,6 +1741,67 @@ void mtDisplay::RenderOverlay() {
         }
     }
     imguiFrameStarted = false;
+}
+
+bool mtDisplay::ReadBackBuffer(std::vector<unsigned char>& rgb, int& width, int& height) {
+    width = fbWidth;
+    height = fbHeight;
+    if (!queue || !drawableTexture || !commandBuffer || width <= 0 || height <= 0) {
+        return false;
+    }
+
+    id<MTLDevice> mtlDevice = mtId(device);
+    id<MTLTexture> src = mtId(drawableTexture);
+
+    MTLTextureDescriptor* desc = [MTLTextureDescriptor
+        texture2DDescriptorWithPixelFormat:src.pixelFormat
+                                     width:(NSUInteger)width
+                                    height:(NSUInteger)height
+                                 mipmapped:NO];
+    desc.storageMode = MTLStorageModeShared;
+    desc.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> staging = [mtlDevice newTextureWithDescriptor:desc];
+    if (!staging) {
+        return false;
+    }
+
+    // The frame's command buffer holds every scene draw but has not been
+    // committed yet (SwapBuffers does that). Blit the drawable into staging
+    // on the same command buffer, commit early, and hand SwapBuffers a fresh
+    // empty command buffer for the ImGui overlay and the present.
+    id<MTLCommandBuffer> frameCmd = mtId(commandBuffer);
+    id<MTLBlitCommandEncoder> blit = [frameCmd blitCommandEncoder];
+    [blit copyFromTexture:src
+              sourceSlice:0
+              sourceLevel:0
+             sourceOrigin:MTLOriginMake(0, 0, 0)
+               sourceSize:MTLSizeMake((NSUInteger)width, (NSUInteger)height, 1)
+                toTexture:staging
+         destinationSlice:0
+         destinationLevel:0
+        destinationOrigin:MTLOriginMake(0, 0, 0)];
+    [blit endEncoding];
+    [frameCmd commit];
+    [frameCmd waitUntilCompleted];
+    mtFree(commandBuffer);
+    commandBuffer = mtOwned([mtId(queue) commandBuffer]);
+
+    const size_t pixels = (size_t)width * (size_t)height;
+    std::vector<unsigned char> bgra(pixels * 4);
+    [staging getBytes:bgra.data()
+          bytesPerRow:(NSUInteger)width * 4
+           fromRegion:MTLRegionMake2D(0, 0, (NSUInteger)width, (NSUInteger)height)
+          mipmapLevel:0];
+
+    // CAMetalLayer row 0 is already the top row and stbi_write_png expects
+    // top-down, so only the BGRA -> RGB swizzle is needed.
+    rgb.resize(pixels * 3);
+    for (size_t i = 0; i < pixels; ++i) {
+        rgb[i * 3 + 0] = bgra[i * 4 + 2];
+        rgb[i * 3 + 1] = bgra[i * 4 + 1];
+        rgb[i * 3 + 2] = bgra[i * 4 + 0];
+    }
+    return true;
 }
 
 // --- Context ----------------------------------------------------------------

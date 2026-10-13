@@ -213,6 +213,7 @@ public:
 
     void AddOverlayCallback(OverlayCallback cb) override;
     void RenderOverlay() override;
+    bool ReadBackBuffer(std::vector<unsigned char>& rgb, int& width, int& height) override;
 
     // Frame lifecycle driven by mtContext.
     void SetClearColour(pddiColour c) { clearColour = c; }
