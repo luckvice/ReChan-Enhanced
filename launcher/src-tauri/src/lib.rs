@@ -130,7 +130,7 @@ async fn gh_get<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> 
 
 async fn latest_desktop_release() -> Result<GhRelease, String> {
     let releases: Vec<GhRelease> =
-        gh_get("https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=30").await?;
+        gh_get("https://api.github.com/repos/luckvice/ReChan-Enhanced/releases?per_page=30").await?;
     // The latest desktop release that actually ships a binary for this
     // platform (a win-only release must not break the macOS launcher).
     releases
@@ -488,7 +488,7 @@ fn open_game_dir() -> Result<String, String> {
 #[tauri::command]
 async fn fetch_releases() -> Result<Vec<ReleaseInfo>, String> {
     let releases: Vec<GhRelease> =
-        gh_get("https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=10").await?;
+        gh_get("https://api.github.com/repos/luckvice/ReChan-Enhanced/releases?per_page=10").await?;
     Ok(releases
         .into_iter()
         .map(|r| ReleaseInfo {

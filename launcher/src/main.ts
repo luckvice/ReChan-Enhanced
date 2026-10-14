@@ -256,9 +256,9 @@ function wire(): void {
   });
 
   const openRepo = (url: string) => () => void openUrl(url);
-  $<HTMLButtonElement>("#btn-open-repo").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Ports"));
-  $<HTMLButtonElement>("#btn-open-issues").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Ports/issues"));
-  $<HTMLButtonElement>("#btn-open-releases").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Ports/releases"));
+  $<HTMLButtonElement>("#btn-open-repo").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Enhanced"));
+  $<HTMLButtonElement>("#btn-open-issues").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Enhanced/issues"));
+  $<HTMLButtonElement>("#btn-open-releases").addEventListener("click", openRepo("https://github.com/luckvice/ReChan-Enhanced/releases"));
 }
 
 async function boot(): Promise<void> {

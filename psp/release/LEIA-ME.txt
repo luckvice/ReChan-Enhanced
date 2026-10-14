@@ -39,7 +39,7 @@ PROBLEMAS CONHECIDOS
   palavra por palavra.
 - PSP Go ainda não testado.
 
-Problemas e sugestões: https://github.com/luckvice/ReChanMetal/issues
+Problemas e sugestões: https://github.com/luckvice/ReChan-Enhanced/issues
 
 CRÉDITOS
 _AG (@gennariarmando) - criador do ReChan: engenharia reversa,

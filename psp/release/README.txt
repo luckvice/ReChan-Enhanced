@@ -39,7 +39,7 @@ KNOWN ISSUES
   from the Portuguese ones and may not follow the audio word for word.
 - The PSP Go is not tested yet.
 
-Issues and suggestions: https://github.com/luckvice/ReChanMetal/issues
+Issues and suggestions: https://github.com/luckvice/ReChan-Enhanced/issues
 
 CREDITS
 _AG (@gennariarmando)    - ReChan creator: reverse engineering, game
