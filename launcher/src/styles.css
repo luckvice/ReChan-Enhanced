@@ -385,6 +385,45 @@ h1 {
   gap: 12px;
 }
 
+.progress {
+  margin: 10px 0 14px;
+}
+
+.progress-track {
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--gold-soft), var(--gold));
+  transition: width 0.2s ease;
+}
+
+.progress-bar.indeterminate {
+  width: 100% !important;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chip.busy .chip-dot {
+  background: var(--warn);
+  animation: pulse 0.9s ease-in-out infinite;
+}
+
 .news-item {
   padding: 14px 16px;
   border-radius: 8px;

@@ -29,7 +29,7 @@
         <main class="main">
           <nav class="nav" id="nav">
             <button class="nav-btn active" data-view="play">Jogar</button>
-            <button class="nav-btn" data-view="install">Instalação</button>
+            <button class="nav-btn" data-view="disc">Disco</button>
             <button class="nav-btn" data-view="settings">Ajustes</button>
             <button class="nav-btn" data-view="news">Novidades</button>
             <button class="nav-btn" data-view="about">Sobre</button>
@@ -37,33 +37,39 @@
 
           <section class="view active" id="view-play">
             <h1>Jogar</h1>
-            <div class="status-grid" id="status-grid"></div>
+            <div class="status-grid" id="status-grid">Carregando…</div>
+            <div class="progress" id="progress" hidden>
+              <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+              <p class="hint" id="progress-text"></p>
+            </div>
             <p class="hint" id="play-hint"></p>
             <div class="actions">
-              <button id="btn-play" class="btn btn-primary btn-big">▶ Jogar</button>
-              <button id="btn-refresh" class="btn">Verificar de novo</button>
+              <button id="btn-play" class="btn btn-primary btn-big" disabled>▶ Jogar</button>
+              <button id="btn-refresh" class="btn">Verificar atualização</button>
               <button id="btn-open-folder" class="btn">Abrir pasta do jogo</button>
             </div>
+            <p class="hint" id="play-msg"></p>
           </section>
 
-          <section class="view" id="view-install">
-            <h1>Instalação</h1>
+          <section class="view" id="view-disc">
+            <h1>Disco</h1>
             <p class="hint">
-              O launcher procura o executável do ReChan (<code>rechan</code> / <code>rechan.exe</code>)
-              ao lado dos dados do jogo. Coloque a imagem do disco NTSC-U em
-              <code>discimage/</code>; na primeira execução o próprio jogo extrai os assets.
+              Selecione a <strong>pasta</strong> que contém a imagem do disco NTSC-U
+              (SLUS-00684): <code>.bin</code>, <code>.iso</code> ou <code>.img</code>.
+              O launcher vincula a imagem em <code>discimage/</code> da pasta do jogo
+              (sem copiar o arquivo). Na primeira execução o jogo extrai os assets.
             </p>
-            <div class="folder-row">
-              <input id="folder-path" class="input" readonly />
-              <button id="btn-change-folder" class="btn">Escolher pasta…</button>
+            <div class="actions">
+              <button id="btn-pick-disc" class="btn btn-primary">Selecionar pasta do disco…</button>
+              <button id="btn-open-game-folder" class="btn">Abrir pasta do jogo</button>
             </div>
-            <ul class="checklist" id="install-checklist"></ul>
-            <p class="hint" id="install-help"></p>
+            <ul class="checklist" id="disc-list"></ul>
+            <p class="hint" id="disc-msg"></p>
           </section>
 
           <section class="view" id="view-settings">
             <h1>Ajustes</h1>
-            <p class="hint">Gravados em <code>userfiles/game.ini</code> da pasta do jogo.</p>
+            <p class="hint">Gravados em <code>userfiles/game.ini</code> na pasta do jogo.</p>
             <label class="field">
               <span>Idioma</span>
               <select id="sel-language" class="select">
@@ -103,8 +109,9 @@
               legal do jogo e fornecer a própria imagem de disco.
             </p>
             <p class="hint">
-              Versões: PC (Windows/Linux/macOS), <strong>RE:Chan HD Edition</strong> (PSP) e
-              build Metal nativo para Apple Silicon. Launcher desktop multiplataforma com Tauri.
+              O launcher baixa automaticamente a última versão dos binários do GitHub,
+              extrai na pasta do jogo e mantém tudo atualizado. Versões: PC (Windows/Linux/macOS),
+              <strong>RE:Chan HD Edition</strong> (PSP) e build Metal nativo para Apple Silicon.
             </p>
             <div class="actions">
               <button id="btn-open-repo" class="btn">Repositório</button>

@@ -2,21 +2,21 @@ use serde::Serialize;
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use tauri::Emitter;
 
-#[derive(Serialize)]
-struct InstallStatus {
-    found: bool,
+#[derive(Serialize, Clone)]
+struct GameState {
     game_dir: String,
     binary: String,
-    binary_name: String,
+    binary_ready: bool,
+    installed_version: String,
+    latest_version: String,
+    update_available: bool,
+    ready: bool,
     has_discimage: bool,
     discimage_files: Vec<String>,
-    has_extracted_data: bool,
-    has_userfiles: bool,
-    settings_path: String,
-    ini_language: Option<i32>,
-    ini_prompt_style: Option<i32>,
+    busy: bool,
+    message: String,
 }
 
 #[derive(Serialize)]
@@ -29,6 +29,23 @@ struct ReleaseInfo {
     body: String,
 }
 
+#[derive(serde::Deserialize)]
+struct GhAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct GhRelease {
+    tag_name: String,
+    name: Option<String>,
+    html_url: String,
+    prerelease: bool,
+    published_at: Option<String>,
+    body: Option<String>,
+    assets: Vec<GhAsset>,
+}
+
 fn binary_name() -> &'static str {
     if cfg!(windows) {
         "rechan.exe"
@@ -37,56 +54,340 @@ fn binary_name() -> &'static str {
     }
 }
 
-fn launcher_dir() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
+fn documents_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|h| PathBuf::from(h).join("Documents"))
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn config_path() -> PathBuf {
-    let base = std::env::var_os("RECHAN_LAUNCHER_CONFIG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| launcher_dir().join("rechan-launcher.json"));
-    base
+/// The launcher owns this directory: releases are downloaded and extracted
+/// here, and the disc images are linked into discimage/.
+fn managed_game_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("RECHAN_GAME_DIR") {
+        return PathBuf::from(dir);
+    }
+    documents_dir().join("ReChan").join("game")
 }
 
-fn read_config_dir() -> Option<String> {
-    let text = fs::read_to_string(config_path()).ok()?;
-    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    value.get("gameDir")?.as_str().map(str::to_owned)
+fn state_path(game_dir: &Path) -> PathBuf {
+    game_dir.join(".rechan-game.json")
 }
 
-fn write_config_dir(dir: &str) {
-    let json = serde_json::json!({ "gameDir": dir }).to_string();
-    let _ = fs::write(config_path(), json);
+fn read_installed_version(game_dir: &Path) -> String {
+    fs::read_to_string(state_path(game_dir))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.get("version")?.as_str().map(str::to_owned))
+        .unwrap_or_default()
 }
 
-fn has_pc_data(dir: &Path) -> bool {
-    let pc = dir.join("pc");
-    pc.is_dir()
-        && fs::read_dir(&pc)
-            .map(|mut it| it.next().is_some())
-            .unwrap_or(false)
-        || dir.join("data").join("pc").is_dir()
+fn write_installed_version(game_dir: &Path, version: &str, asset: &str) {
+    let json = serde_json::json!({
+        "version": version,
+        "asset": asset,
+        "installedAt": chrono_lite_now(),
+    });
+    let _ = fs::write(state_path(game_dir), json.to_string());
 }
 
-fn list_disc_images(dir: &Path) -> Vec<String> {
+fn chrono_lite_now() -> String {
+    // Avoid a datetime dependency; the field is informational only.
+    String::new()
+}
+
+fn platform_token() -> String {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let arch_token = match arch {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
+    };
+    format!("{os}-{arch_token}")
+}
+
+fn is_desktop_release(tag: &str) -> bool {
+    // PSP packages use tags like v1.0.0-beta2_PSP.
+    !tag.contains("_PSP")
+}
+
+async fn gh_get<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("rechan-launcher")
+        .build()
+        .map_err(|e| e.to_string())?;
+    client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json::<T>()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn latest_desktop_release() -> Result<GhRelease, String> {
+    let releases: Vec<GhRelease> =
+        gh_get("https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=30").await?;
+    releases
+        .into_iter()
+        .find(|r| is_desktop_release(&r.tag_name))
+        .ok_or_else(|| "nenhum release desktop encontrado".to_owned())
+}
+
+fn pick_platform_asset(release: &GhRelease) -> Option<&GhAsset> {
+    let token = platform_token();
+    release
+        .assets
+        .iter()
+        .find(|a| a.name.to_ascii_lowercase().contains(&token.to_ascii_lowercase()))
+}
+
+fn list_disc_images(game_dir: &Path) -> Vec<String> {
+    let dir = game_dir.join("discimage");
     let mut out = Vec::new();
-    for candidate in [dir.join("discimage"), dir.join("data").join("discimage")] {
-        if let Ok(entries) = fs::read_dir(&candidate) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_lowercase();
-                let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("");
-                if matches!(ext, "bin" | "iso" | "img") {
-                    out.push(entry.file_name().to_string_lossy().into_owned());
-                }
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_lowercase();
+            let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("");
+            if matches!(ext, "bin" | "iso" | "img") {
+                out.push(entry.file_name().to_string_lossy().into_owned());
             }
         }
     }
     out.sort();
-    out.dedup();
     out
+}
+
+fn build_state(game_dir: &Path, message: &str, busy: bool) -> GameState {
+    let binary = game_dir.join(binary_name());
+    let installed = read_installed_version(game_dir);
+    GameState {
+        game_dir: game_dir.to_string_lossy().into_owned(),
+        binary: binary.to_string_lossy().into_owned(),
+        binary_ready: binary.is_file(),
+        installed_version: installed,
+        latest_version: String::new(),
+        update_available: false,
+        ready: binary.is_file(),
+        has_discimage: !list_disc_images(game_dir).is_empty(),
+        discimage_files: list_disc_images(game_dir),
+        busy,
+        message: message.to_owned(),
+    }
+}
+
+#[tauri::command]
+fn game_state() -> GameState {
+    let dir = managed_game_dir();
+    build_state(&dir, "", false)
+}
+
+fn emit_progress(app: &tauri::AppHandle, phase: &str, received: u64, total: u64, message: &str) {
+    let _ = app.emit(
+        "game://progress",
+        serde_json::json!({
+            "phase": phase,
+            "received": received,
+            "total": total,
+            "message": message,
+        }),
+    );
+}
+
+async fn download_to_file(
+    app: &tauri::AppHandle,
+    url: &str,
+    dest: &Path,
+) -> Result<u64, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("rechan-launcher")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut response = client.get(url).send().await.map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("download falhou: HTTP {}", response.status()));
+    }
+    let total = response.content_length().unwrap_or(0);
+    let mut file = fs::File::create(dest).map_err(|e| e.to_string())?;
+    let mut received: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+        received += chunk.len() as u64;
+        if last_emit.elapsed().as_millis() > 150 {
+            emit_progress(app, "downloading", received, total, "Baixando atualização…");
+            last_emit = std::time::Instant::now();
+        }
+    }
+    file.flush().map_err(|e| e.to_string())?;
+    emit_progress(app, "downloading", received, total.max(received), "Download completo");
+    Ok(received)
+}
+
+/// Extract the release zip into the game dir, stripping the zip's top-level
+/// folder so that rechan and pc/ land directly in game_dir.
+fn extract_zip(zip_path: &Path, game_dir: &Path) -> Result<(), String> {
+    let file = fs::File::open(zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let Some(raw) = entry.enclosed_name().map(|p| p.to_path_buf()) else {
+            continue;
+        };
+        let mut components = raw.components();
+        components.next(); // strip top-level folder
+        let rel: PathBuf = components.collect();
+        if rel.as_os_str().is_empty() {
+            continue;
+        }
+        let out_path = game_dir.join(&rel);
+        if entry.is_dir() || raw.to_string_lossy().ends_with('/') {
+            fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut out = fs::File::create(&out_path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+        drop(out);
+        // Restore the executable bit for the game binary.
+        if rel == Path::new(binary_name()) {
+            set_executable(&out_path);
+        }
+    }
+    Ok(())
+}
+
+fn set_executable(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o755));
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+}
+
+/// Check the latest desktop release and download/extract it when a new
+/// version is available (or nothing is installed yet).
+#[tauri::command]
+async fn ensure_latest(app: tauri::AppHandle) -> Result<GameState, String> {
+    let game_dir = managed_game_dir();
+    emit_progress(&app, "checking", 0, 0, "Procurando a última versão…");
+    let release = latest_desktop_release().await?;
+    let installed = read_installed_version(&game_dir);
+
+    let up_to_date = !installed.is_empty() && installed == release.tag_name;
+    if up_to_date {
+        let mut state = build_state(&game_dir, "Você está na última versão.", false);
+        state.latest_version = release.tag_name;
+        emit_progress(&app, "ready", 0, 0, "Você está na última versão.");
+        return Ok(state);
+    }
+
+    let asset = pick_platform_asset(&release)
+        .ok_or_else(|| format!("release {} não tem binário para {}", release.tag_name, platform_token()))?;
+
+    fs::create_dir_all(&game_dir).map_err(|e| e.to_string())?;
+    let zip_path = game_dir.join(".rechan-download.zip");
+    download_to_file(&app, &asset.browser_download_url, &zip_path).await?;
+
+    emit_progress(&app, "extracting", 0, 0, "Extraindo…");
+    let tmp_dir = game_dir.join(".rechan-extract");
+    let _ = fs::remove_dir_all(&tmp_dir);
+    fs::create_dir_all(&tmp_dir).map_err(|e| e.to_string())?;
+    extract_zip(&zip_path, &tmp_dir)?;
+
+    // Promote extracted files over the existing install.
+    for entry in fs::read_dir(&tmp_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let target = game_dir.join(entry.file_name());
+        if target.exists() {
+            if target.is_dir() {
+                let _ = fs::remove_dir_all(&target);
+            } else {
+                let _ = fs::remove_file(&target);
+            }
+        }
+        fs::rename(entry.path(), &target).map_err(|e| e.to_string())?;
+    }
+    let _ = fs::remove_dir_all(&tmp_dir);
+    let _ = fs::remove_file(&zip_path);
+
+    write_installed_version(&game_dir, &release.tag_name, &asset.name);
+    let tag = release.tag_name;
+    let mut state = build_state(
+        &game_dir,
+        &format!("Instalado: {tag}"),
+        false,
+    );
+    state.latest_version = tag.clone();
+    emit_progress(&app, "done", 0, 0, &format!("Instalado: {tag}"));
+    Ok(state)
+}
+
+/// Link (or copy) the disc images found in the chosen folder into
+/// game_dir/discimage, replacing any previous images.
+#[tauri::command]
+fn link_disc_images(folder: String) -> Result<Vec<String>, String> {
+    let src = PathBuf::from(&folder);
+    if !src.is_dir() {
+        return Err("pasta não encontrada".to_owned());
+    }
+    let mut images: Vec<PathBuf> = Vec::new();
+    for entry in fs::read_dir(&src).map_err(|e| e.to_string())?.flatten() {
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("");
+        if matches!(ext, "bin" | "iso" | "img") {
+            images.push(entry.path());
+        }
+    }
+    if images.is_empty() {
+        return Err("nenhuma imagem .bin/.iso/.img nesta pasta".to_owned());
+    }
+    images.sort();
+
+    let game_dir = managed_game_dir();
+    let disc_dir = game_dir.join("discimage");
+    fs::create_dir_all(&disc_dir).map_err(|e| e.to_string())?;
+    // The game expects a single disc image in discimage/.
+    for entry in fs::read_dir(&disc_dir).map_err(|e| e.to_string())?.flatten() {
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("");
+        if matches!(ext, "bin" | "iso" | "img") {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+
+    let image = &images[0];
+    let dest = disc_dir.join(image.file_name().unwrap());
+    // Prefer a symlink (no 700 MB copy); fall back to a copy when linking
+    // is not allowed (e.g. unprivileged Windows).
+    #[cfg(unix)]
+    let linked = std::os::unix::fs::symlink(image, &dest).is_ok();
+    #[cfg(not(unix))]
+    let linked = false;
+    if !linked {
+        fs::copy(image, &dest).map_err(|e| e.to_string())?;
+    }
+    Ok(list_disc_images(&game_dir))
+}
+
+#[tauri::command]
+fn launch_game(dir: String) -> Result<(), String> {
+    let binary = PathBuf::from(&dir).join(binary_name());
+    if !binary.is_file() {
+        return Err(format!("executável não encontrado: {}", binary.display()));
+    }
+    set_executable(&binary);
+    std::process::Command::new(&binary)
+        .current_dir(&dir)
+        .spawn()
+        .map_err(|e| format!("falha ao executar: {e}"))?;
+    Ok(())
 }
 
 fn parse_ini_value(text: &str, section: &str, key: &str) -> Option<i32> {
@@ -120,10 +421,8 @@ fn write_ini_value(text: &mut String, section: &str, key: &str, value: i32) {
             current = Some(i);
             continue;
         }
-        if current.is_none() {
-            continue;
-        }
-        let sec = lines[current.unwrap()].trim_matches(['[', ']']).trim().to_ascii_lowercase();
+        let Some(cur) = current else { continue };
+        let sec = lines[cur].trim_matches(['[', ']']).trim().to_ascii_lowercase();
         if sec != section.to_ascii_lowercase() {
             continue;
         }
@@ -153,79 +452,19 @@ fn write_ini_value(text: &mut String, section: &str, key: &str, value: i32) {
 }
 
 #[tauri::command]
-fn candidate_dirs() -> Vec<String> {
-    let mut out: Vec<PathBuf> = Vec::new();
-    let exe_dir = launcher_dir();
-    out.push(exe_dir.clone());
-    out.push(exe_dir.join("game"));
-    out.push(exe_dir.join("rechan"));
-    out.push(exe_dir.join("bin"));
-    out.push(exe_dir.parent().unwrap_or(&exe_dir).to_path_buf());
-    if let Some(docs) = dirs_documents() {
-        out.push(docs.join("ReChan"));
-    }
-    if let Ok(env_dir) = std::env::var("RECHAN_DIR") {
-        out.push(PathBuf::from(env_dir));
-    }
-    out.into_iter().map(|p| p.to_string_lossy().into_owned()).collect()
-}
-
-fn dirs_documents() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(|h| PathBuf::from(h).join("Documents"))
+fn read_settings() -> Result<(Option<i32>, Option<i32>), String> {
+    let path = managed_game_dir().join("userfiles").join("game.ini");
+    let text = fs::read_to_string(path).unwrap_or_default();
+    Ok((
+        parse_ini_value(&text, "general", "language"),
+        parse_ini_value(&text, "controls", "prompt_style"),
+    ))
 }
 
 #[tauri::command]
-fn get_last_dir() -> Option<String> {
-    read_config_dir()
-}
-
-#[tauri::command]
-fn set_last_dir(dir: String) {
-    write_config_dir(&dir);
-}
-
-#[tauri::command]
-fn scan_dir(dir: String) -> InstallStatus {
-    let root = PathBuf::from(&dir);
-    let binary = root.join(binary_name());
-    let found = binary.is_file();
-    let discimage_files = list_disc_images(&root);
-    let settings_path = root.join("userfiles").join("game.ini");
-    let ini_text = fs::read_to_string(&settings_path).unwrap_or_default();
-
-    InstallStatus {
-        found,
-        game_dir: dir,
-        binary: binary.to_string_lossy().into_owned(),
-        binary_name: binary_name().to_string(),
-        has_discimage: !discimage_files.is_empty(),
-        discimage_files,
-        has_extracted_data: has_pc_data(&root),
-        has_userfiles: root.join("userfiles").is_dir(),
-        settings_path: settings_path.to_string_lossy().into_owned(),
-        ini_language: parse_ini_value(&ini_text, "general", "language"),
-        ini_prompt_style: parse_ini_value(&ini_text, "controls", "prompt_style"),
-    }
-}
-
-#[tauri::command]
-fn launch_game(binary: String, dir: String) -> Result<(), String> {
-    let path = PathBuf::from(&binary);
-    if !path.is_file() {
-        return Err(format!("executável não encontrado: {binary}"));
-    }
-    Command::new(&path)
-        .current_dir(&dir)
-        .spawn()
-        .map_err(|e| format!("falha ao executar: {e}"))?;
-    Ok(())
-}
-
-#[tauri::command]
-fn write_settings(dir: String, language: i32, prompt_style: i32) -> Result<(), String> {
-    let userfiles = PathBuf::from(&dir).join("userfiles");
+fn write_settings(language: i32, prompt_style: i32) -> Result<(), String> {
+    let game_dir = managed_game_dir();
+    let userfiles = game_dir.join("userfiles");
     fs::create_dir_all(&userfiles).map_err(|e| e.to_string())?;
     let path = userfiles.join("game.ini");
     let mut text = fs::read_to_string(&path).unwrap_or_default();
@@ -237,30 +476,25 @@ fn write_settings(dir: String, language: i32, prompt_style: i32) -> Result<(), S
 }
 
 #[tauri::command]
-async fn fetch_releases() -> Result<Vec<ReleaseInfo>, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("rechan-launcher")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let url = "https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=10";
-    let releases: Vec<serde_json::Value> = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
+fn open_game_dir() -> Result<String, String> {
+    let dir = managed_game_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.to_string_lossy().into_owned())
+}
 
+#[tauri::command]
+async fn fetch_releases() -> Result<Vec<ReleaseInfo>, String> {
+    let releases: Vec<GhRelease> =
+        gh_get("https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=10").await?;
     Ok(releases
         .into_iter()
         .map(|r| ReleaseInfo {
-            tag_name: r["tag_name"].as_str().unwrap_or("").to_owned(),
-            name: r["name"].as_str().unwrap_or("").to_owned(),
-            html_url: r["html_url"].as_str().unwrap_or("").to_owned(),
-            prerelease: r["prerelease"].as_bool().unwrap_or(false),
-            published_at: r["published_at"].as_str().unwrap_or("").to_owned(),
-            body: r["body"].as_str().unwrap_or("").to_owned(),
+            tag_name: r.tag_name,
+            name: r.name.unwrap_or_default(),
+            html_url: r.html_url,
+            prerelease: r.prerelease,
+            published_at: r.published_at.unwrap_or_default(),
+            body: r.body.unwrap_or_default(),
         })
         .collect())
 }
@@ -271,12 +505,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            candidate_dirs,
-            get_last_dir,
-            set_last_dir,
-            scan_dir,
+            game_state,
+            ensure_latest,
+            link_disc_images,
             launch_game,
+            read_settings,
             write_settings,
+            open_game_dir,
             fetch_releases
         ])
         .run(tauri::generate_context!())
