@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RE:Chan Launcher</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="titlebar" data-tauri-drag-region>
+        <img class="titlebar-logo" src="/src/assets/jcslogo.png" alt="" data-tauri-drag-region />
+        <span class="titlebar-title" data-tauri-drag-region>RE:Chan Launcher</span>
+        <div class="titlebar-actions">
+          <button id="btn-minimize" class="titlebar-btn" aria-label="Minimizar">─</button>
+          <button id="btn-close" class="titlebar-btn titlebar-close" aria-label="Fechar">✕</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="hero">
+          <img class="hero-logo" src="/src/assets/jcslogo.png" alt="ReChan" />
+          <img class="hero-jackie" src="/src/assets/jackie.png" alt="" />
+          <p class="hero-legal">
+            Reimplementation não oficial, sem fins lucrativos, de Jackie Chan Stuntmaster.
+            Nenhum arquivo original do jogo é distribuído.
+          </p>
+        </aside>
+
+        <main class="main">
+          <nav class="nav" id="nav">
+            <button class="nav-btn active" data-view="play">Jogar</button>
+            <button class="nav-btn" data-view="install">Instalação</button>
+            <button class="nav-btn" data-view="settings">Ajustes</button>
+            <button class="nav-btn" data-view="news">Novidades</button>
+            <button class="nav-btn" data-view="about">Sobre</button>
+          </nav>
+
+          <section class="view active" id="view-play">
+            <h1>Jogar</h1>
+            <div class="status-grid" id="status-grid"></div>
+            <p class="hint" id="play-hint"></p>
+            <div class="actions">
+              <button id="btn-play" class="btn btn-primary btn-big">▶ Jogar</button>
+              <button id="btn-refresh" class="btn">Verificar de novo</button>
+              <button id="btn-open-folder" class="btn">Abrir pasta do jogo</button>
+            </div>
+          </section>
+
+          <section class="view" id="view-install">
+            <h1>Instalação</h1>
+            <p class="hint">
+              O launcher procura o executável do ReChan (<code>rechan</code> / <code>rechan.exe</code>)
+              ao lado dos dados do jogo. Coloque a imagem do disco NTSC-U em
+              <code>discimage/</code>; na primeira execução o próprio jogo extrai os assets.
+            </p>
+            <div class="folder-row">
+              <input id="folder-path" class="input" readonly />
+              <button id="btn-change-folder" class="btn">Escolher pasta…</button>
+            </div>
+            <ul class="checklist" id="install-checklist"></ul>
+            <p class="hint" id="install-help"></p>
+          </section>
+
+          <section class="view" id="view-settings">
+            <h1>Ajustes</h1>
+            <p class="hint">Gravados em <code>userfiles/game.ini</code> da pasta do jogo.</p>
+            <label class="field">
+              <span>Idioma</span>
+              <select id="sel-language" class="select">
+                <option value="0">English</option>
+                <option value="1">Deutsch</option>
+                <option value="2">Français</option>
+                <option value="3">Italiano</option>
+                <option value="4">Español</option>
+                <option value="5">Português (Brasil)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Estilo dos botões</span>
+              <select id="sel-prompt" class="select">
+                <option value="0">Xbox / Padrão</option>
+                <option value="1">Nintendo Switch</option>
+                <option value="2">PlayStation / DualSense</option>
+              </select>
+            </label>
+            <div class="actions">
+              <button id="btn-save-settings" class="btn btn-primary">Salvar ajustes</button>
+            </div>
+            <p class="hint" id="settings-msg"></p>
+          </section>
+
+          <section class="view" id="view-news">
+            <h1>Novidades</h1>
+            <p class="hint">Releases do projeto (luckvice/ReChan-Ports).</p>
+            <div id="news-list" class="news-list">Carregando…</div>
+          </section>
+
+          <section class="view" id="view-about">
+            <h1>Sobre</h1>
+            <p class="hint">
+              <strong>RE:Chan</strong> é um projeto de reimplementação de
+              <em>Jackie Chan Stuntmaster</em> (SLUS-00684). Você precisa possuir uma cópia
+              legal do jogo e fornecer a própria imagem de disco.
+            </p>
+            <p class="hint">
+              Versões: PC (Windows/Linux/macOS), <strong>RE:Chan HD Edition</strong> (PSP) e
+              build Metal nativo para Apple Silicon. Launcher desktop multiplataforma com Tauri.
+            </p>
+            <div class="actions">
+              <button id="btn-open-repo" class="btn">Repositório</button>
+              <button id="btn-open-issues" class="btn">Issues</button>
+              <button id="btn-open-releases" class="btn">Releases</button>
+            </div>
+            <p class="hint legal">
+              Não afiliado, patrocinado ou aprovado pelos detentores dos direitos de
+              Jackie Chan Stuntmaster. Código sob licença MIT; o jogo e seus assets
+              permanecem com seus respectivos donos.
+            </p>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
