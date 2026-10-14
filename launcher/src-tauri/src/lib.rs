@@ -108,8 +108,9 @@ fn platform_token() -> String {
 }
 
 fn is_desktop_release(tag: &str) -> bool {
-    // PSP packages use tags like v1.0.0-beta2_PSP.
-    !tag.contains("_PSP")
+    // PSP packages use tags like v1.0.0-beta2_PSP and launcher packages use
+    // tags like launcher-v0.1.0; neither is a game build.
+    !tag.contains("_PSP") && !tag.starts_with("launcher-")
 }
 
 async fn gh_get<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
@@ -130,10 +131,12 @@ async fn gh_get<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> 
 async fn latest_desktop_release() -> Result<GhRelease, String> {
     let releases: Vec<GhRelease> =
         gh_get("https://api.github.com/repos/luckvice/ReChan-Ports/releases?per_page=30").await?;
+    // The latest desktop release that actually ships a binary for this
+    // platform (a win-only release must not break the macOS launcher).
     releases
         .into_iter()
-        .find(|r| is_desktop_release(&r.tag_name))
-        .ok_or_else(|| "nenhum release desktop encontrado".to_owned())
+        .find(|r| is_desktop_release(&r.tag_name) && pick_platform_asset(r).is_some())
+        .ok_or_else(|| "nenhum release desktop encontrado para esta plataforma".to_owned())
 }
 
 fn pick_platform_asset(release: &GhRelease) -> Option<&GhAsset> {
