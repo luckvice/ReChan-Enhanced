@@ -186,6 +186,24 @@ s32 WorldPoints_GetParValue() {
     return parNode->parValue;
 }
 
+WorldPointNode* WorldPoints_GetFirstPositionPoint() {
+    return WorldPoints_GetNextPositionPoint(nullptr);
+}
+
+WorldPointNode* WorldPoints_GetNextPositionPoint(WorldPointNode* node) {
+    const u32 parCrc = p3dHash(s_worldPointParName);
+    ccNode* n = node ? static_cast<ccNode*>(node->next)
+                     : static_cast<ccNode*>(g_worldPointList.head);
+    while (n) {
+        WorldPointNode* point = static_cast<WorldPointNode*>(n);
+        if (point->GetNameCRC() != parCrc) {
+            return point;
+        }
+        n = static_cast<ccNode*>(n->next);
+    }
+    return nullptr;
+}
+
 // PSX Populate__2AI: mesh loop (lst TEXT:80056698) then volume loop (80056748); same nameCRC yields two moveList
 // nodes. Skip volume AddThing when a type-6 mesh twin already exists.
 static bool SceneVolumeHasMeshTwin(const DBVolume* vol, u16 subType) {

@@ -47,6 +47,84 @@
 #include "pddi/psp/psprender.h"
 #endif
 
+#if defined(PSP_DEBUG_MENU)
+#include "gen/ai.h"
+#include "ai/player.h"
+#include "ai/thing.h"
+#include "gen/blockmgr.h"
+#include "gen/camera.h"
+
+namespace {
+
+// Level/zone list for the dev-only PSP debug selector. Mirrors the desktop
+// debug UI table (src/pc/debugui.cpp, kDebugLevelSelectorEntries), which is
+// not compiled into the PSP build. Labels are used directly as menu entry
+// tokens: Localize() falls back to the token when no text entry matches.
+struct DebugLevelEntry {
+    s32 levelID;
+    s32 petal;
+    const char* label;
+};
+
+const DebugLevelEntry kDebugLevelEntries[] = {
+    {  1, 0, "Chinatown 1" },
+    {  1, 1, "Chinatown 2" },
+    {  1, 2, "Chinatown 3" },
+    { 11, 0, "Chinatown Boss" },
+    {  2, 0, "Waterfront 1" },
+    {  2, 1, "Waterfront 2" },
+    {  2, 2, "Waterfront 3" },
+    { 12, 0, "Waterfront Boss" },
+    {  3, 0, "Sewer 1" },
+    {  3, 1, "Sewer 2" },
+    {  3, 2, "Sewer 3" },
+    { 13, 0, "Sewer Boss" },
+    {  4, 0, "Roof Top 1" },
+    {  4, 1, "Roof Top 2" },
+    {  4, 2, "Roof Top 3" },
+    { 14, 0, "Roof Top Boss" },
+    {  5, 0, "Factory 1" },
+    {  5, 1, "Factory 2" },
+    {  5, 2, "Factory 3" },
+    {  8, 0, "Factory Boss" },
+    {  6, 0, "Special Level" },
+};
+
+constexpr s32 kDebugLevelCount =
+    (s32)(sizeof(kDebugLevelEntries) / sizeof(kDebugLevelEntries[0]));
+// Rows per page; two more rows are reserved for the prev/next navigation
+// entries. Six keeps the tallest page at eight rows, which still fits the
+// auto-sized window on the PSP screen.
+constexpr s32 kDebugListVisibleRows = 6;
+constexpr s32 kDebugModeLevels = 0;
+constexpr s32 kDebugModeWarps = 1;
+
+s32 DebugCountNisPoints() {
+    s32 count = 0;
+    for (WorldPointNode* node = WorldPoints_GetFirstPositionPoint(); node;
+         node = WorldPoints_GetNextPositionPoint(node)) {
+        ++count;
+    }
+    return count;
+}
+
+WorldPointNode* DebugGetNisPoint(s32 index) {
+    if (index < 0) {
+        return nullptr;
+    }
+    s32 current = 0;
+    for (WorldPointNode* node = WorldPoints_GetFirstPositionPoint(); node;
+         node = WorldPoints_GetNextPositionPoint(node)) {
+        if (current == index) {
+            return node;
+        }
+        ++current;
+    }
+    return nullptr;
+}
+
+} // namespace
+#endif
 feCustomMenuMgr* g_feCustomMenuMgr = nullptr;
 
 #if defined(RC_PLATFORM_PSP)
@@ -760,6 +838,9 @@ void feCustomMenuMgr::BuildPages() {
 #if MOD_LOADER
         Button("FE_MODS", EntryEvent_GoPage, MenuPage_Mods),
 #endif
+#if defined(PSP_DEBUG_MENU)
+        Button("DEBUG", EntryEvent_GoPage, MenuPage_Debug),
+#endif
         Button("FE_BCK", EntryEvent_Back),
                });
 
@@ -954,7 +1035,22 @@ void feCustomMenuMgr::BuildPages() {
         Button("FE_OPT", EntryEvent_GoPage, MenuPage_Options),
         Button("FE_EXL", EntryEvent_GoPage, MenuPage_ExitLevelConfirm),
         Button("FE_QTG", EntryEvent_GoPage, MenuPage_QuitConfirm),
+#if defined(PSP_DEBUG_MENU)
+        Button("DEBUG", EntryEvent_GoPage, MenuPage_Debug),
+#endif
                });
+
+#if defined(PSP_DEBUG_MENU)
+    auto& feDebug = AddPage(MenuPage_Debug, "DEBUG", "Menu_GameOption", MenuPage_Options, 0, false, -1, -1);
+    SetEntries(feDebug, {
+        Button("Fase/Zona", EntryEvent_DebugOpenLevelList),
+        Button("Cena (NIS)", EntryEvent_DebugOpenWarpList),
+        Button("FE_BCK", EntryEvent_Back),
+               });
+
+    // Rows are rebuilt every frame by RefreshDebugListPage().
+    AddPage(MenuPage_DebugList, "DEBUG", "Menu_GameOption", MenuPage_Debug, 0, false, -1, -1);
+#endif
 
     auto& feLocation = AddPage(MenuPage_Location, "", "Menu_Location", MenuPage_None, 0, false, DEF_WINDOW_W, 130);
     SetEntries(feLocation, {
@@ -2411,6 +2507,14 @@ s32 feCustomMenuMgr::Invoke() {
         }
     }
 
+#if defined(PSP_DEBUG_MENU)
+    // Rebuild the debug selector window before the generic cursor handling so
+    // numEntries and the visible rows are valid for this frame's input/render.
+    if (m_currPage == MenuPage_DebugList) {
+        RefreshDebugListPage();
+    }
+#endif
+
     if (g_actionInput->JustPressed(ACTION_MENU_UP)) {
         MoveCursor(-1);
         PlaySound(FE_SND_MENU_7);
@@ -2716,6 +2820,159 @@ bool feCustomMenuMgr::InvokeLocationSelection() {
     return false;
 }
 
+#if defined(PSP_DEBUG_MENU)
+void feCustomMenuMgr::RefreshDebugListPage() {
+    const s32 count = (m_debugMode == kDebugModeWarps) ? DebugCountNisPoints() : kDebugLevelCount;
+
+    s32 pageCount = (count + kDebugListVisibleRows - 1) / kDebugListVisibleRows;
+    if (pageCount < 1) {
+        pageCount = 1;
+    }
+    if (m_debugPage >= pageCount) {
+        m_debugPage = pageCount - 1;
+    }
+    if (m_debugPage < 0) {
+        m_debugPage = 0;
+    }
+
+    const s32 first = m_debugPage * kDebugListVisibleRows;
+    const s32 last = (first + kDebugListVisibleRows < count) ? first + kDebugListVisibleRows : count;
+
+    PageDef& page = m_pages[MenuPage_DebugList];
+    s32 rows = 0;
+    for (s32 i = first; i < last && rows < MAX_ENTRIES_PER_MENU; ++i) {
+        char label[MAX_CUSTOM_MENU_TOKEN + 1];
+        if (m_debugMode == kDebugModeWarps) {
+            const WorldPointNode* point = DebugGetNisPoint(i);
+            std::snprintf(label, sizeof(label), "%s", point ? point->GetName() : "?");
+        }
+        else {
+            std::snprintf(label, sizeof(label), "%s", kDebugLevelEntries[i].label);
+        }
+        page.entries[rows++] = Button(label, EntryEvent_DebugPick);
+    }
+
+    if (pageCount > 1 && m_debugPage > 0 && rows < MAX_ENTRIES_PER_MENU) {
+        page.entries[rows++] = Button("<- Anterior", EntryEvent_DebugPagePrev);
+    }
+    if (pageCount > 1 && m_debugPage + 1 < pageCount && rows < MAX_ENTRIES_PER_MENU) {
+        page.entries[rows++] = Button("Proxima ->", EntryEvent_DebugPageNext);
+    }
+    if (rows == 0) {
+        page.entries[rows++] = Info("Sem itens");
+    }
+
+    page.numEntries = rows;
+    if (m_cursor >= rows) {
+        m_cursor = rows - 1;
+    }
+    if (m_cursor < 0) {
+        m_cursor = 0;
+    }
+
+    if (page.autoFrameH) {
+        page.frameH = CalcAutoFrameHeight(page.numEntries, CalcPageExtraHeight(page));
+    }
+}
+
+void feCustomMenuMgr::DebugListApply(s32 index) {
+    if (m_debugMode == kDebugModeWarps) {
+        DebugListWarpToPoint(index);
+    }
+    else {
+        DebugListLoadLevel(index);
+    }
+}
+
+void feCustomMenuMgr::DebugListLoadLevel(s32 index) {
+    if (index < 0 || index >= kDebugLevelCount) {
+        return;
+    }
+
+    World* world = g_game ? g_game->GetWorld() : nullptr;
+    if (!world || !Player::s_player || !g_blockManager) {
+        PlaySound(FE_SND_MENU_7);
+        return;
+    }
+
+    const DebugLevelEntry& entry = kDebugLevelEntries[index];
+    const s32 levelIndex = world->LevelIDToIndex(entry.levelID);
+    const u32 levelIndexU = (u32)levelIndex;
+    // LevelIDToIndex returns 0 for an unknown ID, so confirm the round trip.
+    if (levelIndex < 0 || world->GetLevelIDFromIndex(levelIndexU) != entry.levelID) {
+        PlaySound(FE_SND_MENU_7);
+        return;
+    }
+
+    s32 petalCount = world->GetLevelPetalCountFromIndex(levelIndexU);
+    if (petalCount < 1) {
+        petalCount = 1;
+    }
+    if (entry.petal < 0 || entry.petal >= petalCount) {
+        PlaySound(FE_SND_MENU_7);
+        return;
+    }
+
+    LOG("[DebugMenu] load level=%s id=%d index=%d petal=%d",
+        entry.label, entry.levelID, levelIndex, entry.petal);
+
+    // Same path the desktop debug UI and the in-game location select use.
+    world->SetTargetLevelPetal((u32)levelIndex, (u32)entry.petal);
+    g_game->SetState(GameState::QueueLevelPetalLoad);
+    m_result = (s32)GameResult::StateChange;
+}
+
+void feCustomMenuMgr::DebugListWarpToPoint(s32 index) {
+    WorldPointNode* point = DebugGetNisPoint(index);
+    Player* player = Player::s_player;
+    if (!point || !player || !g_game) {
+        PlaySound(FE_SND_MENU_7);
+        return;
+    }
+
+    // Mirrors DebugUI::ProcessPendingCheckpointWarp (desktop-only): the block
+    // number drives block streaming, and the checkpoint record plus the camera
+    // retarget are what actually move the world around the player.
+    player->pos = point->pos;
+    player->homePos = point->pos;
+    player->UpdatePosition();
+
+    s32 blockNum = point->parValue;
+    if (g_blockManager) {
+        const u16 resolvedBlock = g_blockManager->GetBlockNumber(point->pos);
+        if (resolvedBlock != BLOCK_UNASSIGNED) {
+            blockNum = static_cast<s32>(resolvedBlock);
+        }
+    }
+    if (blockNum >= 0 && blockNum <= 0xFFFF) {
+        player->blockNum = static_cast<u16>(blockNum);
+    }
+
+    World* world = g_game->GetWorld();
+    player->checkpoint.field0 = point->pos.x;
+    player->checkpoint.field4 = point->pos.y;
+    player->checkpoint.field8 = point->pos.z;
+    player->checkpoint.field12 = player->orientation.x;
+    player->checkpoint.field16 = player->orientation.y;
+    player->checkpoint.field20 = player->orientation.z;
+    player->checkpoint.field24 = (blockNum >= 0) ? blockNum : static_cast<s32>(player->blockNum);
+    player->checkpoint.field28 = 0;
+    player->checkpoint.SetValidState(1);
+    player->checkpoint.levelIndex = world ? static_cast<s32>(world->GetCurrentLevelIndex()) : 0;
+    player->checkpoint.petalIndex = world ? static_cast<s32>(world->GetCurrentPetalIndex()) : 0;
+
+    if (g_display && g_display->GetCamera()) {
+        g_display->GetCamera()->SetLookAtTarget(player, 1);
+    }
+
+    LOG("[DebugMenu] warp point=%s pos=(%d,%d,%d) block=%d",
+        point->GetName(), point->pos.x, point->pos.y, point->pos.z, blockNum);
+
+    // Resume play at the new spot.
+    Deactivate();
+}
+#endif
+
 void feCustomMenuMgr::Confirm() {
     const Entry* e = &m_pages[m_currPage].entries[m_cursor];
 
@@ -3011,6 +3268,41 @@ void feCustomMenuMgr::Confirm() {
             m_quitTimerSec = DEF_QUIT_TIMER_SEC;
             SetPage(MenuPage_Quitting);
             break;
+#if defined(PSP_DEBUG_MENU)
+        case EntryEvent_DebugOpenLevelList:
+            m_debugMode = kDebugModeLevels;
+            m_debugPage = 0;
+            m_pages[MenuPage_DebugList].parentPage = m_currPage;
+            m_pages[MenuPage_DebugList].parentEntry = m_cursor;
+            SetPage(MenuPage_DebugList);
+            RefreshDebugListPage();
+            break;
+        case EntryEvent_DebugOpenWarpList:
+            m_debugMode = kDebugModeWarps;
+            m_debugPage = 0;
+            m_pages[MenuPage_DebugList].parentPage = m_currPage;
+            m_pages[MenuPage_DebugList].parentEntry = m_cursor;
+            SetPage(MenuPage_DebugList);
+            RefreshDebugListPage();
+            break;
+        case EntryEvent_DebugPick:
+            // Window rows map 1:1 onto the list, so the cursor plus the page
+            // offset is the selected item.
+            DebugListApply(m_debugPage * kDebugListVisibleRows + m_cursor);
+            break;
+        case EntryEvent_DebugPagePrev:
+            if (m_debugPage > 0) {
+                --m_debugPage;
+            }
+            m_cursor = 0;
+            RefreshDebugListPage();
+            break;
+        case EntryEvent_DebugPageNext:
+            ++m_debugPage;
+            m_cursor = 0;
+            RefreshDebugListPage();
+            break;
+#endif
     }
 }
 

@@ -89,6 +89,14 @@ DEFINES = -DRC_PLATFORM_PSP -DPSP -DPSP_GE -DIMGUI_DISABLE -DPSP_SORT_OPAQUE_MAT
 	-DPSP_ENABLE_NATIVE_INDEXED -DPSP_INDEXED_LIST_MEMORY -DPSP_INDEXED_PERSISTENT_INDICES \
 	-DPSP_TRIPLE_BUFFER
 
+# Dev-only debug menu: "DEBUG" entry in the Options/pause menus with a
+# level/zone selector and a NIS warp list (jump straight to a scene). Off by
+# default so shipping builds are unchanged; build with PSP_DEBUG_MENU=1.
+PSP_DEBUG_MENU ?= 0
+ifeq ($(PSP_DEBUG_MENU),1)
+DEFINES += -DPSP_DEBUG_MENU
+endif
+
 # Small-data (gp-relative) addressing. -G0 (inherited from the PSPSDK sample
 # Makefiles) puts every global behind a lui+addiu/lw absolute pair. The module
 # already runs with a valid $gp: PSP_MODULE_INFO publishes _gp, every thread

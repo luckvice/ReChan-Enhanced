@@ -62,6 +62,12 @@ enum MenuPage : s32 {
     MenuPage_Update,
     MenuPage_Changelog,
     MenuPage_AssetMissing,
+#if defined(PSP_DEBUG_MENU)
+    // Dev-only PSP pages: "DEBUG" selector in the Options/pause menus.
+    // See MenuPage_Debug / RefreshDebugListPage() in fecustommenumgr.cpp.
+    MenuPage_Debug,
+    MenuPage_DebugList,
+#endif
     MenuPage_Count,
 };
 
@@ -147,6 +153,14 @@ enum EntryEvent : u8 {
     EntryEvent_ScanForAssets,
     EntryEvent_ExtractAssets,
     EntryEvent_QuitFromAssetCheck,
+#if defined(PSP_DEBUG_MENU)
+    // PSP debug menu actions (see RefreshDebugListPage / DebugListApply).
+    EntryEvent_DebugOpenLevelList,
+    EntryEvent_DebugOpenWarpList,
+    EntryEvent_DebugPick,
+    EntryEvent_DebugPagePrev,
+    EntryEvent_DebugPageNext,
+#endif
 };
 
 #define MAX_ENTRIES_PER_MENU (12)
@@ -642,6 +656,15 @@ private:
     void RenderLocationPage() const;
     bool InvokeLocationSelection();
 
+#if defined(PSP_DEBUG_MENU)
+    // Dev-only PSP debug selector (level/zone list + NIS warp list). Entries of
+    // MenuPage_DebugList are rebuilt every frame by RefreshDebugListPage().
+    void RefreshDebugListPage();
+    void DebugListApply(s32 index);
+    void DebugListLoadLevel(s32 index);
+    void DebugListWarpToPoint(s32 index);
+#endif
+
     CustomText* m_text = nullptr;
     PageDef m_pages[MenuPage_Count];
     PageDef m_popups[PopupKind_Count];
@@ -745,6 +768,12 @@ private:
     s32 m_modCursor = 0;
     s32 m_modScrollTop = 0;
     f32 m_modScrollVisual = 0.0f;
+#endif
+
+#if defined(PSP_DEBUG_MENU)
+    // Debug selector state: 0 = level/zone list, 1 = NIS warp list.
+    s32 m_debugMode = 0;
+    s32 m_debugPage = 0;
 #endif
 
     SaveGameSlotInfo m_saveSlots[SAVEGAME_VISIBLE_SLOT_COUNT] = {};

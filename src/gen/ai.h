@@ -108,3 +108,7 @@ void WorldPoints_Reset();
 void WorldPoints_AddPoint(struct DBPoint* pt);
 WorldPointNode* WorldPoints_GetNISPoint(u32 crc);
 s32 WorldPoints_GetParValue();
+// Enumeration of the loaded level's named position points (the fixed "PAR"
+// lookup node is skipped). Used by the PSP debug menu to list warp targets.
+WorldPointNode* WorldPoints_GetFirstPositionPoint();
+WorldPointNode* WorldPoints_GetNextPositionPoint(WorldPointNode* node);
