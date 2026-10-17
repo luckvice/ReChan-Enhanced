@@ -837,9 +837,29 @@ bool BlockManager::UpdateToBeLoadedList(u32 blockNum) {
     if (nextCount < nextActive) {
         nextActive = nextCount;
     }
+#if defined(RC_PLATFORM_PSP)
+    // Re:Chain PSP Edition: Beta 1 fitted the active window to the block count
+    // exactly like the draw window above, so every block that could reach the
+    // screen had its things activated. Upstream's PSX-accurate range (block
+    // bytes 34/35) is narrower than the 16:9 draw window, so humanoids that are
+    // still on screen stay in the draw window without activation: they never
+    // get their Behaviour (frozen statues that take no hits) and, having no
+    // model, fall back to the red debug wireframe - the Waterfront 1 dock
+    // enemies. Verified with a humanoid/block-window dump: active(2)=[38,37]
+    // against draw(8)=[38..31], with Brock275/276 (block 36) and the block 31/33
+    // thugs drawn but inactive. Keep the Beta 1 flow on the console; upstream
+    // keeps the new one.
+    if (numBlocks > GetBaseLoadedBlockCount()) {
+        FitBlockWindow(previousActive, nextActive, previousCount, nextCount, numBlocks);
+    }
+    else if (previousActive + nextActive + 1 >= 8) {
+        FitBlockWindow(previousActive, nextActive, previousCount, nextCount, 7);
+    }
+#else
     if (previousActive + nextActive + 1 >= 8) {
         FitBlockWindow(previousActive, nextActive, previousCount, nextCount, 7);
     }
+#endif
 
     activeCount = 1;
     activeList[0] = (u16)blockNum;
