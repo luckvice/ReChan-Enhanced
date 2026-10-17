@@ -73,7 +73,7 @@ Once assets are extracted the disc image folder can be deleted.
 
 ReChan currently supports 64-bit x86 (`x86_64`) Windows and Linux, and Apple
 Silicon (`arm64`) macOS. On macOS the renderer uses a native Metal backend. To
-compile it yourself, see the [build guide](docs/BUILDING.md). A native PSP
+compile it yourself, see the [build guide](docs/visionmaster/business/sources/BUILDING.md). A native PSP
 target is also available through PSPSDK. See the platform sections below for
 the full feature lists of each edition.
 
@@ -122,7 +122,7 @@ backend** (no OpenGL translation layer), with the full desktop feature set:
 - Deterministic `--autotest` harness with screenshot capture through the
   Metal readback path, used for renderer regression testing
 
-To build, see the [build guide](docs/BUILDING.md) (`premake5 gmake2` +
+To build, see the [build guide](docs/visionmaster/business/sources/BUILDING.md) (`premake5 gmake2` +
 `make config=release`).
 
 ## Legal and Asset Notice
@@ -162,7 +162,7 @@ No. That is not a goal of this project.
 
 **Can I contribute?**  
 Yes. Documentation, data formats, and behavior analysis are all welcome. See
-the [build guide](docs/BUILDING.md) to get started.
+the [build guide](docs/visionmaster/business/sources/BUILDING.md) to get started.
 
 ## Crash reports
 
