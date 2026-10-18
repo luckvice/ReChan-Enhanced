@@ -4,23 +4,74 @@ the expected test-pattern colours, and an optional crop of the game area to a
 640x448 PNG (the PS2's native resolution).
 
 Usage:
-    python3 ps2/tools/verify-render.py <capture.bmp> [--png <out.png>]
+    python3 ps2/tools/verify-render.py <capture.bmp> [--preset pddi|basic]
+                                       [--png <out.png>]
 
 macOS screenshots are colour-managed, so raw channel values may differ from the
-colours set on the GS; hues are compared with a tolerance instead of bytes.
+colours set on the GS; pixels are matched to the nearest preset colour and the
+areas are compared against the geometry the ELF draws, not against bytes.
 """
 import struct
 import sys
 import zlib
 
-PATTERN = {
-    "background blue": (0x10, 0x20, 0x60),
-    "yellow": (0xf0, 0xc0, 0x20),
-    "red": (0xd0, 0x30, 0x20),
-    "green": (0x20, 0xd0, 0x50),
-    "white": (0xff, 0xff, 0xff),
+# The scenes the boot ELF can draw. `colours` are the values handed to the GS,
+# `expected` the share of the 640x448 frame each one covers plus the absolute
+# tolerance allowed (the screenshot is scaled by the window and shifted by
+# colour management, so areas drift a little).
+PRESETS = {
+    # ps2/main.cpp: RGBA32 texture, CLUT texture, gouraud quad, triangle batch.
+    "pddi": {
+        "colours": {
+            "background": (0x10, 0x20, 0x60),
+            "tex A yellow": (0xf0, 0xc0, 0x20),
+            "tex A red": (0xd0, 0x30, 0x20),
+            "tex A green": (0x20, 0xd0, 0x50),
+            "tex A magenta": (0xd0, 0x20, 0xc0),
+            "tex B cyan": (0x20, 0xd0, 0xe0),
+            "tex B orange": (0xf0, 0x80, 0x20),
+            "tex B purple": (0x70, 0x20, 0xd0),
+            "tex B white": (0xff, 0xff, 0xff),
+            "gouraud teal": (0x20, 0xa0, 0xa0),
+            "batch lime": (0x38, 0xf0, 0x00),
+        },
+        "expected": {
+            "background": (0.5446, 0.030),
+            "tex A yellow": (0.0357, 0.008),
+            "tex A red": (0.0357, 0.008),
+            "tex A green": (0.0357, 0.008),
+            "tex A magenta": (0.0357, 0.008),
+            "tex B cyan": (0.0335, 0.008),
+            "tex B orange": (0.0335, 0.008),
+            "tex B purple": (0.0335, 0.008),
+            "tex B white": (0.0335, 0.008),
+            "gouraud teal": (0.0714, 0.012),
+            "batch lime": (0.1071, 0.015),
+        },
+    },
+    # The gsKit-only pattern step 1 drew, kept for the record.
+    "basic": {
+        "colours": {
+            "background blue": (0x10, 0x20, 0x60),
+            "yellow": (0xf0, 0xc0, 0x20),
+            "red": (0xd0, 0x30, 0x20),
+            "green": (0x20, 0xd0, 0x50),
+            "white": (0xff, 0xff, 0xff),
+        },
+        "expected": {
+            "background blue": (0.6610, 0.030),
+            "yellow": (0.1451, 0.030),
+            "red": (0.1451, 0.030),
+            "green": (0.0363, 0.030),
+            "white": (0.0126, 0.030),
+        },
+    },
 }
-TOLERANCE = 40
+DEFAULT_PRESET = "pddi"
+
+# A pixel further than this (per channel) from every preset colour is window
+# chrome, not part of the picture.
+CHANNEL_TOLERANCE = 40
 
 
 def load_bmp(path):
@@ -57,6 +108,15 @@ def main():
     png_out = None
     if "--png" in sys.argv:
         png_out = sys.argv[sys.argv.index("--png") + 1]
+    preset_name = DEFAULT_PRESET
+    if "--preset" in sys.argv:
+        preset_name = sys.argv[sys.argv.index("--preset") + 1]
+    if preset_name not in PRESETS:
+        print(f"unknown preset: {preset_name} (have {', '.join(PRESETS)})")
+        return
+    pattern = PRESETS[preset_name]["colours"]
+    expected = PRESETS[preset_name]["expected"]
+    print(f"preset: {preset_name}")
 
     data, off, w, h, bpp = load_bmp(src)
     step = bpp // 8
@@ -86,32 +146,26 @@ def main():
     # Assign every sampled pixel to the nearest pattern colour and compare the
     # proportions with the area each one covers in the test pattern. Robust
     # against the channel shifts introduced by macOS colour management.
-    expected = {
-        "background blue": 0.6610,
-        "yellow": 0.1451,
-        "red": 0.1451,
-        "green": 0.0363,
-        "white": 0.0126,
-    }
-    counts = {name: 0 for name in PATTERN}
+    counts = {name: 0 for name in pattern}
     total = 0
     for (r, g, b), n in hist.items():
         best, best_d = None, 1 << 30
-        for name, (wr, wg, wb) in PATTERN.items():
+        for name, (wr, wg, wb) in pattern.items():
             d = (r - wr) ** 2 + (g - wg) ** 2 + (b - wb) ** 2
             if d < best_d:
                 best, best_d = name, d
-        if best_d > TOLERANCE ** 2 * 3:
+        if best_d > CHANNEL_TOLERANCE ** 2 * 3:
             continue  # window chrome / black borders, not part of the pattern
         counts[best] += n
         total += n
     print(f"pattern proportions over {total} sampled pixels:")
     hits = 0
-    for name, share in expected.items():
+    for name, (share, tol) in expected.items():
         got = counts[name] / total if total else 0.0
-        ok = abs(got - share) <= 0.03
+        ok = abs(got - share) <= tol
         hits += 1 if ok else 0
-        print(f"  [{'OK' if ok else '--'}] {name}: {got*100:5.1f}% (expected {share*100:.1f}%)")
+        print(f"  [{'OK' if ok else '--'}] {name}: {got*100:5.1f}% "
+              f"(expected {share*100:.1f}% +/-{tol*100:.1f})")
     print(f"pattern colours within tolerance: {hits}/{len(expected)}")
 
     if png_out is None:

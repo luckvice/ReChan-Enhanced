@@ -23,7 +23,7 @@ WIN=""
 for i in $(seq 1 24); do
     sleep 2
     WIN=$(swift "$HERE/pcsx2-window-id.swift" pcsx2 2>/dev/null \
-          | awk -F'\t' '$2=="layer=0" && $3=="onscreen=true" {print $1; exit}')
+          | awk -F'\t' '$2=="layer=0" && $3=="onscreen=true" { split($6, s, "x"); if (s[1] >= 600) { print $1; exit } }')
     if [ -n "$WIN" ]; then
         echo "PCSX2 window found after ~$((i*2))s: id=$WIN"
         break

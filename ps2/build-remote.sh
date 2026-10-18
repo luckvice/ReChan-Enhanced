@@ -23,9 +23,15 @@ TARBALL="/tmp/rechan-ps2-src.$$.tgz"
 
 mkdir -p "$OUT"
 
-# Only ps2/ for now. Later tasks of the epic will add src/ and
-# vendor/libp3d/pddi/ps2.
-tar -C "$ROOT" -czf "$TARBALL" ps2
+# The target plus the libp3d sources it compiles: the pddi interface headers,
+# the ps2 backend and the maths headers core.h pulls in. vendor/libp3d/vendor
+# (79 MB of third-party trees) is not needed to build this target and is left
+# out on purpose.
+tar -C "$ROOT" -czf "$TARBALL" \
+    ps2 \
+    vendor/libp3d/core.h \
+    vendor/libp3d/p3d \
+    vendor/libp3d/pddi
 trap 'rm -f "$TARBALL"' EXIT
 
 echo "==> sending sources to $HOST:$REMOTE_DIR"

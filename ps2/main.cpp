@@ -1,29 +1,28 @@
-// ReChan — PlayStation 2 (Emotion Engine + Graphics Synthesizer)
+// ReChan — PlayStation 2 (Emotion Engine + Graphics Synthesizer) boot target.
 //
-// Step 1 of the port: prove the toolchain -> boot -> first render cycle in
-// PCSX2, at the console's native resolution (640x448 NTSC, the same format as
-// the NTSC-U disc SLUS-00684).
+// Step 2 of the port: the app boots through the pddi device interface
+// (vendor/libp3d/pddi/ps2), the same way the desktop and PSP builds do, and
+// renders a verification pattern at the console's native 640x448 NTSC mode.
 //
-// The sequence follows gsKit's canonical example (examples/basic/basic.c):
-//   - static content goes into the PERSISTENT queue (replayed every frame);
-//   - Z test is turned off after the clear (gsKit_clear draws a sprite at Z=0;
-//     without this, primitives with Z>0 are rejected);
-//   - the frame loop uses the ONESHOT queue, which is reset on every
-//     gsKit_queue_exec.
+// The pattern exercises the paths the game will need:
+//   - an RGBA32 texture (DrawQuad with a shader-bound texture),
+//   - an 8-bit CLUT texture (the palette path PSX-era art uses),
+//   - a gouraud quad (per-vertex colours),
+//   - a triangle batch (DrawQuadBatch, the sprite/UI path).
 //
-// Two log channels: stdout (EE TTY) and host:/rechan-ps2.log (a PCSX2 device
-// that maps to dist/ps2).
+// Two log channels: stdout (EE TTY) and host:/rechan-ps2.log, a PCSX2 device
+// that maps to dist/ps2.
 
-#include <gsKit.h>
-#include <dmaKit.h>
-#include <gsToolkit.h>
+#include "pddi/pddidev.h"
+#include "pddi/pddishad.h"
+#include "pddi/pdditex.h"
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 static const int kWidth = 640;
 static const int kHeight = 448;
-static const int kFrames = 600;  // ~10 s at 60 Hz: long enough to screenshot.
 
 static FILE* g_log = 0;
 
@@ -42,11 +41,22 @@ static void Log(const char* fmt, ...) {
     }
 }
 
-static void ReportGlobal(const char* tag, GSGLOBAL* gs) {
-    Log("[RECHAN-PS2] %s mode=%d %dx%d interlace=%d field=%d aspect=%d DW=%d DH=%d mag=(%d,%d) psm=%d zbuf=%d dbuf=%d\n",
-        tag, (int)gs->Mode, gs->Width, gs->Height, (int)gs->Interlace, (int)gs->Field,
-        gs->Aspect, gs->DW, gs->DH, gs->MagH, gs->MagV, gs->PSM,
-        (int)gs->ZBuffering, (int)gs->DoubleBuffering);
+// Solid-colour quadrants, in the order top-left, top-right, bottom-left,
+// bottom-right. `rgba` is always RGBA8; the backend converts it to whatever GS
+// format the texture asks for.
+static void MakeQuadrants(unsigned char* dst, int w, int h,
+                          const unsigned char colours[4][3]) {
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const int quadrant = (y < h / 2 ? 0 : 2) + (x < w / 2 ? 0 : 1);
+            const unsigned char* c = colours[quadrant];
+            unsigned char* px = dst + ((size_t)y * w + x) * 4;
+            px[0] = c[0];
+            px[1] = c[1];
+            px[2] = c[2];
+            px[3] = 0xff;
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -55,78 +65,129 @@ int main(int argc, char* argv[]) {
 
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    Log("[RECHAN-PS2] boot: PS2 target (EE/GS), native resolution %dx%d\n", kWidth, kHeight);
+    Log("[RECHAN-PS2] boot: pddi device (EE/GS), native resolution %dx%d\n", kWidth, kHeight);
 
     g_log = fopen("host:/rechan-ps2.log", "w");
     Log("[RECHAN-PS2] file log: %s\n", g_log ? "host:/rechan-ps2.log" : "unavailable");
 
-    GSGLOBAL* gs = gsKit_init_global();
-    if (gs == 0) {
-        Log("[RECHAN-PS2] ERROR: gsKit_init_global failed\n");
+    pddiDevice* device = pddiCreate();
+    if (device == 0) {
+        Log("[RECHAN-PS2] ERROR: pddiCreate failed\n");
         return 1;
     }
-    ReportGlobal("defaults", gs);
+    Log("[RECHAN-PS2] device ok (%p)\n", (void*)device);
 
-    // Native NTSC resolution (the NTSC block documented in gsKit's basic.c).
-    // Field = GS_FIELD: interlaced field mode, like real PS2 games. With
-    // Interlace + GS_FRAME, gsKit ends up with MagV = -1 and a broken display.
-    gs->Mode = GS_MODE_NTSC;
-    gs->Interlace = GS_INTERLACED;
-    gs->Field = GS_FIELD;
-    gs->Width = kWidth;
-    gs->Height = kHeight;
-    gs->Aspect = GS_ASPECT_4_3;
-    gs->PrimAlphaEnable = GS_SETTING_ON;
+    pddiDisplay* display = device->NewDisplay();
+    Log("[RECHAN-PS2] display object ok\n");
+    pddiDisplayInit init;
+    init.xSize = kWidth;
+    init.ySize = kHeight;
+    init.title = "ReChan";
+    if (!display->InitDisplay(init)) {
+        Log("[RECHAN-PS2] ERROR: InitDisplay failed\n");
+        return 1;
+    }
+    Log("[RECHAN-PS2] display ready: %dx%d\n", display->GetWidth(), display->GetHeight());
 
-    dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8,
-                1 << DMA_CHANNEL_GIF);
-    dmaKit_chan_init(DMA_CHANNEL_GIF);
+    pddiRenderContext* ctx = device->NewRenderContext(display);
+    pddiGamepad* pad = device->NewGamepad();
 
-    Log("[RECHAN-PS2] gsKit_init_screen...\n");
-    gsKit_init_screen(gs);
-    ReportGlobal("screen", gs);
-    Log("[RECHAN-PS2] gsKit_init_screen ok\n");
+    pddiBaseShader* shader = device->NewShader("simple");
+    shader->SetColour(PDDI_SP::DIFFUSE, pddiColour(255, 255, 255, 255));
 
-    // Alpha 0x00 is opaque in gsKit colours (the clear itself already proved it).
-    const u64 kBg = GS_SETREG_RGBAQ(0x10, 0x20, 0x60, 0x00, 0x00);
-    const u64 kYellow = GS_SETREG_RGBAQ(0xf0, 0xc0, 0x20, 0x00, 0x00);
-    const u64 kRed = GS_SETREG_RGBAQ(0xd0, 0x30, 0x20, 0x00, 0x00);
-    const u64 kGreen = GS_SETREG_RGBAQ(0x20, 0xd0, 0x50, 0x00, 0x00);
-    const u64 kWhite = GS_SETREG_RGBAQ(0xff, 0xff, 0xff, 0x00, 0x00);
+    // Texture A: RGBA32, four quadrants.
+    static const unsigned char kQuadsA[4][3] = {
+        {0xf0, 0xc0, 0x20},  // yellow
+        {0xd0, 0x30, 0x20},  // red
+        {0x20, 0xd0, 0x50},  // green
+        {0xd0, 0x20, 0xc0},  // magenta
+    };
+    unsigned char imageA[128 * 128 * 4];
+    MakeQuadrants(imageA, 128, 128, kQuadsA);
+    pddiTexture* textureA = device->NewTexture();
+    textureA->SetData(128, 128, 32, 8, imageA);
+    textureA->SetFilterMode(PDDI_FILTER_NONE);
 
-    // Static content in the persistent queue (survives oneshot resets).
-    gsKit_mode_switch(gs, GS_PERSISTENT);
-    gsKit_clear(gs, kBg);
-    gsKit_set_test(gs, GS_ZTEST_OFF);
-    gsKit_prim_sprite(gs, 40.0f, 60.0f, 300.0f, 220.0f, 4, kYellow);
-    gsKit_prim_sprite(gs, 340.0f, 240.0f, 600.0f, 400.0f, 4, kRed);
-    gsKit_prim_sprite(gs, 40.0f, 380.0f, 300.0f, 420.0f, 4, kGreen);
-    gsKit_mode_switch(gs, GS_ONESHOT);
-    Log("[RECHAN-PS2] static pattern queued (persistent)\n");
+    // Texture B: the same layout stored as 8-bit indices with a CLUT.
+    static const unsigned char kQuadsB[4][3] = {
+        {0x20, 0xd0, 0xe0},  // cyan
+        {0xf0, 0x80, 0x20},  // orange
+        {0x70, 0x20, 0xd0},  // purple
+        {0xff, 0xff, 0xff},  // white
+    };
+    unsigned char imageB[64 * 64 * 4];
+    MakeQuadrants(imageB, 64, 64, kQuadsB);
+    pddiTexture* textureB = device->NewTexture();
+    textureB->SetData(64, 64, 8, 8, imageB);
+    textureB->SetFilterMode(PDDI_FILTER_NONE);
 
-    for (int frame = 0; frame < kFrames; ++frame) {
-        // A moving bar proves the loop advances frame by frame.
-        float x = (float)((frame * 3) % (kWidth + 80)) - 40.0f;
-        gsKit_prim_sprite(gs, x, 200.0f, x + 60.0f, 260.0f, 5, kWhite);
-
-        if (frame == 0) {
-            Log("[RECHAN-PS2] frame 0: queue_exec...\n");
+    // Triangle batch: two flat triangles covering a quad (per-vertex colours).
+    float batchColour[3] = {0x80 / 255.0f, 0xff / 255.0f, 0x00 / 255.0f};
+    const float bx0 = 352.0f, by0 = 64.0f, bx1 = 592.0f, by1 = 192.0f;
+    float batchVerts[6 * 8];
+    {
+        const float positions[6][2] = {
+            {bx0, by0}, {bx1, by0}, {bx1, by1},
+            {bx0, by0}, {bx1, by1}, {bx0, by1},
+        };
+        for (int i = 0; i < 6; ++i) {
+            float* v = batchVerts + i * 8;
+            v[0] = positions[i][0];
+            v[1] = positions[i][1];
+            v[2] = 0.0f;
+            v[3] = batchColour[0];
+            v[4] = batchColour[1];
+            v[5] = batchColour[2];
+            v[6] = (positions[i][0] - bx0) / (bx1 - bx0);
+            v[7] = (positions[i][1] - by0) / (by1 - by0);
         }
-        gsKit_queue_exec(gs);
-        if (frame == 0) {
-            Log("[RECHAN-PS2] frame 0: queue_exec ok, sync_flip...\n");
-        }
-        gsKit_sync_flip(gs);
-        if (frame == 0) {
-            Log("[RECHAN-PS2] frame 0: sync_flip ok\n");
+    }
+    pddiPrimBuffer* batch = device->NewPrimBuffer(
+        pddiPrimBufferDesc(PDDI_PRIM_TRIANGLES, PDDI_V_POSITION | PDDI_V_COLOUR | PDDI_V_UV, 6, 0));
+    batch->SetVertexData(batchVerts, 6);
+
+    const float teal[3] = {0x20 / 255.0f, 0xa0 / 255.0f, 0xa0 / 255.0f};
+    ctx->SetClearColour(pddiColour(0x10, 0x20, 0x60));
+
+    Log("[RECHAN-PS2] scene: textureA(RGBA32) textureB(CLUT) gouraud batch\n");
+
+    u64 frames = 0;
+    while (!display->ShouldClose()) {
+        display->PollEvents();
+        if (pad != 0) {
+            pad->Poll();
         }
 
-        if ((frame % 60) == 0) {
-            Log("[RECHAN-PS2] frame %d ok\n", frame);
+        ctx->BeginFrame();
+        ctx->Clear(PDDI_BUFFER_ALL);
+        ctx->SetBlendMode(PDDI_BLEND_NONE);
+
+        shader->SetTexture(PDDI_SP::TEXTURE, textureA);
+        ctx->DrawQuad(shader, 32.0f, 48.0f, 256.0f, 160.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+        shader->SetTexture(PDDI_SP::TEXTURE, textureB);
+        ctx->DrawQuad(shader, 352.0f, 240.0f, 240.0f, 160.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+        ctx->DrawGouraudQuad(32.0f, 272.0f, teal[0], teal[1], teal[2], 1.0f,
+                             288.0f, 272.0f, teal[0], teal[1], teal[2], 1.0f,
+                             32.0f, 352.0f, teal[0], teal[1], teal[2], 1.0f,
+                             288.0f, 352.0f, teal[0], teal[1], teal[2], 1.0f);
+
+        ctx->SetTexture(0);
+        ctx->DrawPrimBuffer(batch, 0, 0);
+
+        ctx->EndFrame();
+        display->SwapBuffers();
+
+        ++frames;
+        if ((frames % 60) == 0) {
+            Log("[RECHAN-PS2] frame %llu ok\n", (unsigned long long)frames);
         }
     }
 
-    Log("[RECHAN-PS2] done: %d frames drawn at %dx%d\n", kFrames, kWidth, kHeight);
+    Log("[RECHAN-PS2] done: %llu frames drawn at %dx%d\n",
+        (unsigned long long)frames, kWidth, kHeight);
+
     if (g_log != 0) {
         fclose(g_log);
         g_log = 0;
