@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 480px;
+    height: 272px;
+    overflow: hidden;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    position: relative;
+    user-select: none;
+  }
+  .bg {
+    position: absolute;
+    inset: 0;
+    width: 480px;
+    height: 272px;
+    object-fit: cover;
+    filter: brightness(0.95) contrast(1.18) saturate(1.25);
+  }
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 75% 70%, rgba(255,140,0,0.25) 0%, transparent 55%),
+                radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 30%, rgba(5,10,25,0.75) 90%),
+                linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.05) 75%, rgba(0,0,0,0.6) 100%),
+                linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 40%),
+                linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 30%);
+  }
+  .jackie {
+    position: absolute;
+    right: 12px;
+    bottom: 0px;
+    height: 252px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 16px rgba(255, 140, 0, 0.45)) drop-shadow(0 10px 25px rgba(0,0,0,0.95));
+    z-index: 2;
+  }
+  .left-pane {
+    position: absolute;
+    left: 20px;
+    top: 20px;
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    z-index: 3;
+  }
+  .logo-img {
+    width: 220px;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 25px rgba(255, 215, 0, 0.4));
+  }
+  .edition-badge {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(135deg, rgba(20, 25, 45, 0.92), rgba(10, 15, 30, 0.96));
+    border: 1px solid rgba(255, 215, 0, 0.65);
+    border-radius: 4px;
+    padding: 4px 9px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .edition-text {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: #FFE082;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  }
+  .version-tag {
+    background: linear-gradient(135deg, #FF6F00, #FF8F00);
+    color: #FFF;
+    font-size: 8.5px;
+    font-weight: 800;
+    padding: 1.5px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .credits {
+    margin-top: 7px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .luckvice-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #64B5F6;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.95);
+  }
+  .bottom-decor {
+    position: absolute;
+    left: 20px;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 3;
+  }
+  .dragon-icon {
+    width: 26px;
+    height: 26px;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.9));
+  }
+  .features-strip {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+</style>
+</head>
+<body>
+  <img class="bg" src="../../res/pc/textures/frontend/background.png" alt="Background">
+  <div class="vignette"></div>
+  <img class="jackie" src="jackie_cutout.png" alt="Jackie Chan">
+  
+  <div class="left-pane">
+    <img class="logo-img" src="jcslogo_cutout.png" alt="Jackie Chan Stuntmaster">
+    <div class="edition-badge">
+      <span class="edition-text">HD Edition</span>
+      <span class="version-tag">BETA 3</span>
+    </div>
+    <div class="credits">
+      <span class="luckvice-badge">ENHANCED BY LUCKVICE</span>
+    </div>
+  </div>
+
+  <div class="bottom-decor">
+    <img class="dragon-icon" src="../../res/pc/textures/collectibles/gold_dragon.png" alt="Dragon">
+    <div class="features-strip">NATIVE 60 FPS • 16-BIT GU • HD HUD</div>
+  </div>
+</body>
+</html>

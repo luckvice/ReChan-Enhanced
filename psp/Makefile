@@ -5,6 +5,12 @@ BUILD_MODE ?= release
 # scripts/make_psp_edition_badge.py.
 RECHAN_PSP_VERSION ?= Beta 3
 PSP_EBOOT_TITLE = Re:Chan HD Edition $(RECHAN_PSP_VERSION)
+PSP_EBOOT_ICON = ICON0.PNG
+PSP_EBOOT_PIC1 = PIC1.PNG
+PSP_EBOOT_PIC0 = PIC0.PNG
+PSP_EBOOT_UNKPNG = PIC0.PNG
+PSP_EBOOT_ANIM = ICON1.PMF
+PSP_EBOOT_ICON1 = ICON1.PMF
 EXTRA_TARGETS = EBOOT.PBP
 # MEMSIZE=1 in PARAM.SFO: PSP-2000/3000/Go (and PPSSPP) give the game the
 # extended user partition (~52 MB instead of ~24 MB); PSP-1000 keeps the small

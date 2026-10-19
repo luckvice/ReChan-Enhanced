@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 144px;
+    height: 80px;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    user-select: none;
+  }
+  .card {
+    width: 144px;
+    height: 80px;
+    position: relative;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #0a0e17;
+    border: 1px solid rgba(255, 215, 0, 0.7);
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.8);
+  }
+  .bg {
+    position: absolute;
+    inset: 0;
+    width: 144px;
+    height: 80px;
+    object-fit: cover;
+    object-position: center;
+    filter: brightness(0.65) contrast(1.2);
+  }
+  .glow-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 80% 65%, rgba(255, 120, 0, 0.35) 0%, transparent 60%),
+                linear-gradient(to right, rgba(5, 10, 25, 0.95) 0%, rgba(5, 10, 25, 0.75) 55%, rgba(5, 10, 25, 0.15) 100%),
+                linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 40%);
+  }
+  .jackie {
+    position: absolute;
+    right: 4px;
+    bottom: 0px;
+    height: 74px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 6px rgba(255, 140, 0, 0.5)) drop-shadow(0 4px 10px rgba(0,0,0,0.95));
+  }
+  .left-content {
+    position: absolute;
+    left: 7px;
+    top: 7px;
+    bottom: 7px;
+    width: 78px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 3;
+  }
+  .logo {
+    width: 76px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.95));
+  }
+  .badges {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 3px;
+  }
+  .badge-psp {
+    background: #003791;
+    color: #ffffff;
+    font-size: 5.5px;
+    font-weight: 900;
+    padding: 1px 3px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+    border: 0.5px solid rgba(255, 255, 255, 0.4);
+  }
+  .badge-beta {
+    background: linear-gradient(135deg, #E65100, #FFA000);
+    color: #ffffff;
+    font-size: 5.5px;
+    font-weight: 800;
+    padding: 1px 3px;
+    border-radius: 2px;
+    letter-spacing: 0.3px;
+  }
+  .footer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .title-sub {
+    font-size: 5.5px;
+    font-weight: 800;
+    color: #FFE082;
+    letter-spacing: 0.6px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  }
+  .author {
+    font-size: 5px;
+    font-weight: 700;
+    color: #64B5F6;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img class="bg" src="../../res/pc/textures/frontend/background.png" alt="BG">
+    <div class="glow-overlay"></div>
+    <img class="jackie" src="jackie_cutout.png" alt="Jackie">
+    <div class="left-content">
+      <div>
+        <img class="logo" src="jcslogo_cutout.png" alt="Logo">
+        <div class="badges">
+          <span class="badge-psp">PSP HD</span>
+          <span class="badge-beta">BETA 3</span>
+        </div>
+      </div>
+      <div class="footer-text">
+        <span class="title-sub">STUNTMASTER</span>
+        <span class="author">BY LUCKVICE</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

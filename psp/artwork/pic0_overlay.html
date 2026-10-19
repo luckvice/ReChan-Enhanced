@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 310px;
+    height: 180px;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .panel {
+    width: 310px;
+    height: 180px;
+    background: linear-gradient(135deg, rgba(10, 15, 30, 0.94) 0%, rgba(20, 30, 55, 0.90) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.55);
+    border-radius: 8px;
+    padding: 10px 14px 8px 14px;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    width: 145px;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.9));
+  }
+  .dragon {
+    width: 32px;
+    height: 32px;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+  }
+  .info-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #FFE082;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    margin-top: 2px;
+  }
+  .subtitle {
+    font-size: 8.5px;
+    font-weight: 600;
+    color: #90CAF9;
+    letter-spacing: 0.8px;
+  }
+  .specs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-top: 5px;
+  }
+  .spec-item {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 3px;
+    padding: 2.5px 5px;
+    font-size: 7.5px;
+    color: #E0E0E0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .spec-dot {
+    width: 3.5px;
+    height: 3.5px;
+    border-radius: 50%;
+    background: #00E676;
+    box-shadow: 0 0 4px #00E676;
+  }
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    padding-top: 4px;
+  }
+  .badge {
+    background: linear-gradient(135deg, #E65100, #FFA000);
+    color: #FFF;
+    font-size: 7px;
+    font-weight: 800;
+    padding: 1.5px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.4px;
+  }
+  .credits {
+    font-size: 7px;
+    font-weight: 600;
+    color: #90CAF9;
+    letter-spacing: 0.6px;
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="top">
+      <img class="logo" src="jcslogo_cutout.png" alt="Logo">
+      <img class="dragon" src="../../res/pc/textures/collectibles/gold_dragon.png" alt="Dragon">
+    </div>
+    <div>
+      <div class="info-title">RE:Chan HD Edition</div>
+      <div class="subtitle">PlayStation Portable Native Port</div>
+      <div class="specs">
+        <div class="spec-item"><span class="spec-dot"></span>60 FPS Native GE</div>
+        <div class="spec-item"><span class="spec-dot"></span>Triple Buffer & 16-bit GU</div>
+        <div class="spec-item"><span class="spec-dot"></span>Modern HD HUD Style</div>
+        <div class="spec-item"><span class="spec-dot"></span>6 FMV Subtitle Languages</div>
+      </div>
+    </div>
+    <div class="footer">
+      <span class="badge">BETA 3 — RC1 SOON</span>
+      <span class="credits">BY LUCKVICE • SILVERWIREGAMES BASE</span>
+    </div>
+  </div>
+</body>
+</html>
