@@ -103,11 +103,7 @@ Step 4, the frontend, now draws: the splash/title art loads (all 13 sheets of
 GS presents the logo, the loading bar and the menu ornaments, with the emulator
 at 100% speed. The engine still runs with **no** disc-derived assets, so the
 world geometry, the PSX VRAM textures, the XC fonts and the audio are absent
-from this build. The white squares over the splash are text: the
-`StbTextBackend` atlas is 2048x2048, above the 1024x1024 the GS can address, so
-the backend rejects it (see `tex: rejected` in the GS trace) and each glyph is
-drawn untextured — the next task gives that atlas a PS2 size, like the PSP path
-already does. The 3D scene stays empty until the user's own disc image is
+from this build. The 3D scene stays empty until the user's own disc image is
 extracted into the host directory.
 
 Step 5, 480p, is done: `ps2gs_init` brings the GS up in gsKit's DTV 480p mode
@@ -124,6 +120,18 @@ about one sheet per frame (the GS trace shows ~2.9k binds over 1k frames). The
 GS absorbs that at 60 fps in the emulator; pooling the splash sheets or batching
 the frontend into one atlas is the follow-up.
 
-Next pieces of the port: the text
-atlas, the VRAM budget, the PSX VRAM texture lookups, the retained-mode mesh
+Step 6, the text, is done: `StbTextBackend` now uses the PSP's atlas recipe on
+the PS2 — 512x512, no oversampling, Latin Extended-A/B dropped — because a
+2048x2048 atlas is above the 1024x1024 the GS can address and was rejected
+outright (`tex: rejected` in the GS trace), leaving every glyph untextured. Each
+atlas is 1 MiB of RGBA, which fits the 2.2 MiB left after the framebuffers; the
+frontend loads two of them (Menu and Legal), so they still take turns with the
+640x360 sheets in the texture pool. Without oversampling the glyphs are minified
+from the 48 px strike to the UI size, so the atlas texture asks for bilinear
+filtering on the PS2 instead of the GS default of nearest — that is what turns
+the blocky edges into readable text. "PRESS ANY BUTTON TO START" now renders in
+the title screen. The white squares that remain over the splash are the PSX VRAM
+particles, which need textures from the disc.
+
+Next pieces of the port: the PSX VRAM texture lookups, the retained-mode mesh
 path over the world geometry, and the audio.

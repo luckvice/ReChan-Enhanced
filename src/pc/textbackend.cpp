@@ -4,6 +4,7 @@
 #include "pc/textoutline.h"
 #include "pc/tim.h"
 #include "p3d/texture.h"
+#include "pddi/pdditex.h"
 #include <cmath>
 #include <array>
 #include <cstring>
@@ -96,10 +97,13 @@ static bool DecodeNextUtf8(const char* text, s32 len, s32& cursor, u32& outCodep
 class StbTextBackend : public ITextBackend {
 public:
     static constexpr s32 kLayoutReferencePixelHeight = 32;
-#if defined(RC_PLATFORM_PSP)
-    // The PSP GE supports texture pages up to 512².  A 512² atlas is enough
-    // for the native UI when the rarely used extended glyph block is omitted;
-    // larger atlases silently fail to sample on PPSSPP/real hardware.
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+    // The PSP GE supports texture pages up to 512², and the PS2 GS addresses at
+    // most 1024x1024 while only ~2.2 MiB of its 4 MiB of VRAM are left for
+    // textures at 480p (a 512² RGBA atlas is 1 MiB and fits). A 512² atlas is
+    // enough for the native UI when the rarely used extended glyph block is
+    // omitted; larger atlases fail to sample on PPSSPP/real hardware and are
+    // rejected outright by the GS backend.
     static constexpr s32 kAtlasSize = 512;
     static constexpr u32 kOversampleX = 1;
     static constexpr u32 kOversampleY = 1;
@@ -107,7 +111,7 @@ public:
     static constexpr s32 kAtlasSize = 2048;
 #endif
     static constexpr s32 kPackPadding = 2;
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     static constexpr u32 kOversampleX = 3;
     static constexpr u32 kOversampleY = 3;
 #endif
@@ -635,7 +639,7 @@ private:
         static const RangeDef kRanges[] = {
             { 32, 95 },        // Basic Latin
             { 160, 96 },       // Latin-1 Supplement
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
             { 0x0100, 128 },   // Latin Extended-A
             { 0x0180, 208 },   // Latin Extended-B subset
 #endif
@@ -776,6 +780,13 @@ private:
             strike.atlas = nullptr;
             return false;
         }
+#if defined(RC_PLATFORM_PS2)
+        // The console path rasterises without oversampling (the atlas has to fit
+        // in VRAM), so glyphs are minified from the strike size to the UI size.
+        // The GS defaults textures to nearest, which turns that minification
+        // into chunky blocks; bilinear keeps the outlines readable.
+        strike.atlas->GetTexture()->SetFilterMode(PDDI_FILTER_BILINEAR);
+#endif
         return true;
     }
 
