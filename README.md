@@ -1,3 +1,9 @@
+<p align="right">
+  <b>English</b> |
+  <a href="README.pt-BR.md">Português (Brasil)</a> |
+  <a href="README.es.md">Español</a>
+</p>
+
 <table align="center">
 <tr>
 <td valign="middle">
@@ -10,10 +16,10 @@
 This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive gameplay experience to modern and retro hardware, featuring major performance overhauls, dedicated native console ports, visual refinements, and extensive quality-of-life additions.
 
 > [!NOTE]
-> **Special Thanks & Reconhecimento**: Grandes agradecimentos ao criador original ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) e aos contribuidores da base original de engenharia reversa. O propósito deste fork é levar a experiência de *Jackie Chan Stuntmaster* ao seu mais alto nível de fidelidade e performance.
+> **Special Thanks & Recognition**: Massive thanks to the original creator ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) and all contributors to the original reverse-engineering codebase. The purpose of this fork is to elevate the *Jackie Chan Stuntmaster* experience to its highest level of fidelity and performance.
 
 > [!IMPORTANT]
-> **Status Oficial do Projeto**: Estamos oficialmente na **Beta 3**! O foco atual é a consolidação de estabilidade, desempenho e polimento geral nos ports e na base, preparando o terreno para a chegada da **RC1 (Release Candidate 1) em breve**.
+> **Official Project Status**: We are officially in **Beta 3**! Current efforts are focused on consolidating stability, performance, and overall polish across all targets and the core engine, preparing the ground for the upcoming **RC1 (Release Candidate 1)** release.
 
 ### To use this project:
 * You **must own a legal copy** of *Jackie Chan Stuntmaster* (SLUS-00684).
@@ -36,7 +42,7 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 ## About
 * Target version: **SLUS-00684** (NTSC-U)
 * Development started: **October 2025**
-* Current status: **Beta 3** (RC1 em breve)
+* Current status: **Beta 3** (RC1 coming soon)
 
 The project focuses on:
 * Reconstructing game logic and original systems
@@ -89,7 +95,7 @@ the full feature lists of each edition.
 
 ## Platform editions
 
-### PSP — *RE:Chan HD Edition* (Beta 3 — RC1 em breve)
+### PSP — *RE:Chan HD Edition* (Beta 3 — RC1 coming soon)
 
 A fully native PSP build (no emulation) compiled with PSPSDK, targeting the
 fixed 480×272 display. It ships as its own edition with platform features on
@@ -149,9 +155,9 @@ For build and development details, see [ps2/README.md](ps2/README.md).
 
 ## Credits & Acknowledgments
 
-- **Original Project Creator**: Sinceros agradecimentos e profundo reconhecimento a [SilverwireGames](https://github.com/SilverwireGames/ReChan) pelo grandioso trabalho original de engenharia reversa e reconstrução da base de código de *Jackie Chan Stuntmaster*.
-- **Luckvice**: Criador e mantenedor deste fork, responsável pelas versões otimizadas, concepção da *RE:Chan HD Edition* para PSP, backend nativo Metal para macOS, porte nativo para PlayStation 2 (GS), otimizações profundas de memória/CPU e aprimoramentos para a experiência definitiva.
-- **Comunidade & Contribuidores**: A todos os fãs e pesquisadores que colaboram com testes, documentação e suporte para manter vivo o legado deste clássico.
+- **Original Project Creator**: Sincere thanks and deep recognition to [SilverwireGames](https://github.com/SilverwireGames/ReChan) for the monumental original reverse engineering and code reconstruction of *Jackie Chan Stuntmaster*.
+- **Luckvice**: Creator and maintainer of this fork, responsible for the optimized editions, conception of the *RE:Chan HD Edition* for PSP, native Metal backend for macOS, native PlayStation 2 (GS) port, deep CPU/memory optimizations, and overall enhancements for the definitive experience.
+- **Community & Contributors**: To all fans, testers, and researchers collaborating with testing, bug reporting, documentation, and support to keep the legacy of this classic alive.
 
 ## Legal and Asset Notice
 
