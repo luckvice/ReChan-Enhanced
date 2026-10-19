@@ -49,9 +49,10 @@ echo "==> fetching $TARGET.elf into dist/ps2/"
 scp -q "$HOST:$REMOTE_DIR/ps2/$TARGET.elf" "$OUT/$TARGET.elf"
 ls -l "$OUT/$TARGET.elf"
 
-echo "==> linking the game data the engine reads through host:"
+echo "==> preparing the game data the engine reads through host:"
 # PCSX2 maps host: to the ELF's own directory, so the assets the engine opens
-# as "pc/..." have to be reachable from there. The HD assets live in res/pc;
+# as "pc/..." have to be reachable from there. prepare-host-data.sh copies and
+# downsizes the desktop art to something the EE can decode and the GS can hold;
 # the original PSX data (SOUND/, XC/, ...) is not distributed with the engine
 # and is picked up from the same place when the user extracted it there.
-ln -sfn "$ROOT/res/pc" "$OUT/pc"
+bash "$ROOT/ps2/tools/prepare-host-data.sh" "$OUT"

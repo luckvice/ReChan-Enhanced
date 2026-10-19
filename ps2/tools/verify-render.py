@@ -5,7 +5,10 @@ the expected test-pattern colours, and an optional crop of the game area to a
 
 Usage:
     python3 ps2/tools/verify-render.py <capture.bmp> [--preset pddi|basic]
-                                       [--png <out.png>]
+                                       [--content] [--png <out.png>]
+
+--content measures how much of the game area is not black, which is what the
+game captures are checked against (they have no fixed test pattern).
 
 macOS screenshots are colour-managed, so raw channel values may differ from the
 colours set on the GS; pixels are matched to the nearest preset colour and the
@@ -99,6 +102,43 @@ def write_png(path, width, height, rgb_rows):
         f.write(png)
 
 
+def find_game_area(px, w, h):
+    """Bounding box of the saturated pixels: the game image inside the window
+    chrome. Rows/columns with a low saturated count (title bar, shadow, black
+    bars) are ignored. Returns None when nothing colourful was drawn."""
+    row_count = [0] * h
+    col_count = [0] * w
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px(x, y)
+            if max(r, g, b) - min(r, g, b) > 40:
+                row_count[y] += 1
+                col_count[x] += 1
+    row_min = max(1, int(0.5 * max(row_count)))
+    col_min = max(1, int(0.5 * max(col_count)))
+
+    minx, miny, maxx, maxy = w, h, -1, -1
+    for y in range(h):
+        if row_count[y] < row_min:
+            continue
+        for x in range(w):
+            if col_count[x] < col_min:
+                continue
+            r, g, b = px(x, y)
+            if max(r, g, b) - min(r, g, b) > 40:
+                if x < minx:
+                    minx = x
+                if x > maxx:
+                    maxx = x
+                if y < miny:
+                    miny = y
+                if y > maxy:
+                    maxy = y
+    if maxx < 0:
+        return None
+    return minx, miny, maxx, maxy
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args:
@@ -129,6 +169,27 @@ def main():
     def px(x, y):
         p = off + y * row_bytes + x * step
         return data[p + 2], data[p + 1], data[p]
+
+    if "--content" in sys.argv:
+        area = find_game_area(px, w, h)
+        if area is None:
+            print("nothing drawn: no saturated pixels found")
+            return 1
+        minx, miny, maxx, maxy = area
+        bw, bh = maxx - minx + 1, maxy - miny + 1
+        lit = 0
+        sampled = 0
+        for y in range(miny, maxy + 1, max(1, bh // 224)):
+            for x in range(minx, maxx + 1, max(1, bw // 320)):
+                r, g, b = px(x, y)
+                if max(r, g, b) > 24:
+                    lit += 1
+                sampled += 1
+        share = lit / sampled if sampled else 0.0
+        print(f"game area: {bw}x{bh} at +{minx}+{miny}")
+        print(f"content: {share*100:.1f}% of the game area is not black "
+              f"({lit}/{sampled} sampled pixels)")
+        return 0
 
     hist = {}
     ys = range(0, h, max(1, h // 300))
@@ -173,39 +234,11 @@ def main():
 
     # The game area is the span of saturated pixels: rows/columns with a low
     # saturated count (window title bar, shadow, black bars) are ignored.
-    row_count = [0] * h
-    col_count = [0] * w
-    for y in range(h):
-        for x in range(w):
-            r, g, b = px(x, y)
-            if max(r, g, b) - min(r, g, b) > 40:
-                row_count[y] += 1
-                col_count[x] += 1
-    row_min = max(1, int(0.5 * max(row_count)))
-    col_min = max(1, int(0.5 * max(col_count)))
-
-    sat = [[0] * w for _ in range(h)]
-    minx, miny, maxx, maxy = w, h, -1, -1
-    for y in range(h):
-        if row_count[y] < row_min:
-            continue
-        for x in range(w):
-            if col_count[x] < col_min:
-                continue
-            r, g, b = px(x, y)
-            if max(r, g, b) - min(r, g, b) > 40:
-                sat[y][x] = 1
-                if x < minx:
-                    minx = x
-                if x > maxx:
-                    maxx = x
-                if y < miny:
-                    miny = y
-                if y > maxy:
-                    maxy = y
-    if maxx < 0:
+    area = find_game_area(px, w, h)
+    if area is None:
         print("no saturated pixels found (nothing was drawn?)")
         return
+    minx, miny, maxx, maxy = area
     bw, bh = maxx - minx + 1, maxy - miny + 1
     print(f"game area: {bw}x{bh} at +{minx}+{miny}")
 

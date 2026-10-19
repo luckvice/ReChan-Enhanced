@@ -11,9 +11,11 @@
 #include "p3d/fileio.h"
 #include "pddi/pddidev.h"
 #include "pddi/pdditex.h"
-#if defined(RC_PLATFORM_PSP)
-// Only the PSP paths log; the desktop libp3d build has no src/ include path.
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+// Only the console paths log; the desktop libp3d build has no src/ include path.
 #include "pc/log.h"
+#endif
+#if defined(RC_PLATFORM_PSP)
 #include "pddi/psp/psprender.h"
 #endif
 
@@ -119,13 +121,21 @@ static tTexture* LoadPspNativeTexture(const char* path, s32* outWidth, s32* outH
     return texture;
 }
 
-// PNG/JPEG frontend art is authored for the desktop at 1920x1080.  Keeping
-// those dimensions until pspTexture::SetData would briefly require an 8 MiB
-// 16-bit texture plus the decoder's RGBA buffer for every image.  The PSP has
-// no use for that source resolution: its native framebuffer is 480x272 and
-// the GE's largest practical texture for this title is 512x512.
-static void GetPspTextureDimensions(int sourceWidth, int sourceHeight,
-                                     int& targetWidth, int& targetHeight) {
+} // namespace
+#endif
+
+// PNG/JPEG frontend art is authored for the desktop at 1920x1080. Keeping those
+// dimensions until the upload would briefly require an 8 MiB RGBA buffer for the
+// decoder plus the packed copy, and neither console has a use for that source
+// resolution: the PSP framebuffer is 480x272 (GE textures up to 512x512) and the
+// PS2 presents 640x448 with only ~0.7 MiB of VRAM left for textures once gsKit's
+// framebuffers exist, so fullscreen 16:9 art is capped at 512x288 and everything
+// else at 512x512.
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+namespace {
+
+static void GetConsoleTextureDimensions(int sourceWidth, int sourceHeight,
+                                        int& targetWidth, int& targetHeight) {
     targetWidth = sourceWidth;
     targetHeight = sourceHeight;
 
@@ -133,10 +143,21 @@ static void GetPspTextureDimensions(int sourceWidth, int sourceHeight,
         return;
     }
 
+#if defined(RC_PLATFORM_PS2)
+    // gsKit's two framebuffers and the z-buffer already take 3.28 MiB of the
+    // 4 MiB of VRAM, so only ~0.7 MiB is left for textures: fullscreen 16:9 art
+    // is capped at 512x288 (576 KiB) and everything else at 512x512.
+    const int fullscreenWidth = 512;
+    const int fullscreenHeight = 288;
+#else
+    const int fullscreenWidth = 480;
+    const int fullscreenHeight = 272;
+#endif
+
     if (sourceWidth >= 960 && sourceHeight >= 540
         && sourceWidth >= sourceHeight * 3 / 2) {
-        targetWidth = 480;
-        targetHeight = 272;
+        targetWidth = fullscreenWidth;
+        targetHeight = fullscreenHeight;
         return;
     }
 
@@ -170,8 +191,8 @@ tTexture* tTexture::LoadFromImagePath(const char* path, s32* outWidth, s32* outH
     const std::string resolvedPath = p3d::io::ResolvePath(path);
     unsigned char* rgbaBytes = stbi_load(resolvedPath.c_str(), &width, &height, &channels, 4);
     if (!rgbaBytes || width <= 0 || height <= 0) {
-#if defined(RC_PLATFORM_PSP) && !defined(NDEBUG)
-        LOG("[PspTexture] stbi_load failed path=%s reason=%s", resolvedPath.c_str(),
+#if (defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)) && !defined(NDEBUG)
+        LOG("[ConsoleTexture] stbi_load failed path=%s reason=%s", resolvedPath.c_str(),
             stbi_failure_reason() ? stbi_failure_reason() : "unknown");
 #endif
         return nullptr;
@@ -179,8 +200,8 @@ tTexture* tTexture::LoadFromImagePath(const char* path, s32* outWidth, s32* outH
 
     int targetWidth = width;
     int targetHeight = height;
-#if defined(RC_PLATFORM_PSP)
-    GetPspTextureDimensions(width, height, targetWidth, targetHeight);
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+    GetConsoleTextureDimensions(width, height, targetWidth, targetHeight);
 #endif
 
     u32* packedPixels = new u32[(size_t)targetWidth * (size_t)targetHeight];
@@ -204,8 +225,8 @@ tTexture* tTexture::LoadFromImagePath(const char* path, s32* outWidth, s32* outH
 
     tTexture* tex = new tTexture();
     if (!tex->Create(targetWidth, targetHeight, 32, 8, packedPixels)) {
-#if defined(RC_PLATFORM_PSP) && !defined(NDEBUG)
-        LOG("[PspTexture] create failed path=%s source=%dx%d target=%dx%d",
+#if (defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)) && !defined(NDEBUG)
+        LOG("[ConsoleTexture] create failed path=%s source=%dx%d target=%dx%d",
             resolvedPath.c_str(), width, height, targetWidth, targetHeight);
 #endif
         delete[] packedPixels;
@@ -214,6 +235,11 @@ tTexture* tTexture::LoadFromImagePath(const char* path, s32* outWidth, s32* outH
     }
 
     delete[] packedPixels;
+
+#if defined(RC_PLATFORM_PS2) && !defined(NDEBUG)
+    LOG("[Ps2Texture] loaded path=%s source=%dx%d target=%dx%d",
+        resolvedPath.c_str(), width, height, targetWidth, targetHeight);
+#endif
 
     if (outWidth) {
         *outWidth = width;

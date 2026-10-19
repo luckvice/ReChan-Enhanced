@@ -359,6 +359,15 @@ int ps2gs_texture_upload(Ps2GsTexture* texture, int width, int height, int forma
         return 0;
     }
 
+    // The GS cannot address more than 1024 texels in either direction, and the
+    // 4 MiB of VRAM cannot hold a full 1920x1080 RGBA sheet anyway. Reject the
+    // texture here, with a reason in the trace, instead of handing gsKit
+    // something it cannot upload.
+    if (width > 1024 || height > 1024) {
+        Trace("tex: rejected %dx%d (GS limit is 1024x1024)\n", width, height);
+        return 0;
+    }
+
     const unsigned char* src = (const unsigned char*)rgba8;
     const int texels = width * height;
 
@@ -373,6 +382,7 @@ int ps2gs_texture_upload(Ps2GsTexture* texture, int width, int height, int forma
 
     void* mem = memalign(128, gsKit_texture_size_ee(width, height, psm));
     if (mem == nullptr) {
+        Trace("tex: alloc failed %dx%d psm=%d\n", width, height, psm);
         printf("[RECHAN-PS2] texture alloc failed (%dx%d)\n", width, height);
         return 0;
     }

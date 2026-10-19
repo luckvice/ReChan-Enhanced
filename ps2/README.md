@@ -58,15 +58,19 @@ PCSX2 2.8.2 with a PS2 BIOS dump:
 * **EE TTY** — `printf` from the EE does not reach `-logfile` with this setup,
   which is why the file channel above exists.
 * **Game data** — the engine opens its assets as `pc/...` through `host:`, so
-  they have to be reachable from the ELF's directory: `build-remote.sh` links
-  `res/pc` there as `dist/ps2/pc`. The original PSX data (`SOUND/`, `XC/`, ...)
-  is not distributed with the engine; place it in the same directory when you
-  have extracted it locally.
+  they have to be reachable from the ELF's directory. `ps2/tools/prepare-host-data.sh`
+  (called by `build-remote.sh`) copies `res/pc` there as `dist/ps2/pc` and
+  downscales the 1920x1080 desktop art once (fullscreen 16:9 to 640x360, the rest
+  to fit 512x512): the EE cannot hold an 8 MiB `stbi_load` buffer per sheet and
+  the GS cannot address a 1920x1080 texture. The original PSX data (`SOUND/`,
+  `XC/`, ...) is not distributed with the engine; place it in the same directory
+  when you have extracted it locally.
 * **Screenshots** — `ps2/tools/pcsx2-shot.sh` boots an ELF, waits for the
   emulator log to report that the ELF (not the BIOS) is executing, settles a few
   seconds and captures the window; `ps2/tools/verify-render.py` prints the colour
-  histogram, checks the expected pattern colours and can crop the game area to a
-  640x448 PNG.
+  histogram, checks the expected pattern colours (`--preset pddi`), measures how
+  much of the game area is not black (`--content`) and can crop the game area to
+  a 640x448 PNG.
 
 ```bash
 bash ps2/tools/pcsx2-shot.sh "$PWD/dist/ps2/rechan.elf" /tmp/shot
@@ -92,8 +96,24 @@ Step 3, the engine itself, is integrated: `rechan.elf` is built from the real
 sources (`src/gen`, `src/ai`, `src/fe`, `src/radlib`, `src/snd`, `src/xclib`,
 `vendor/libp3d/p3d`) with `-DRC_PLATFORM_PS2`, boots through `Game::Open()` and
 runs the `Game::Step()` loop at a self-reported 60 Hz, reading its data through
-`host:` — with no EE exceptions and only the assets the user has to provide
-missing from the log. What is still blank is the picture: the game reaches its
-state machine but draws nothing visible yet, so the retained-mode mesh path
-(`pddiPrimBuffer` over the world geometry), the PSX VRAM/texture lookups and the
-render targets are the next pieces of the port.
+`host:` — with no EE exceptions.
+
+Step 4, the frontend, now draws: the splash/title art loads (all 13 sheets of
+`res/pc/textures`, including the 1920x1080 ones, reduced to 640x360) and the
+GS presents the logo, the loading bar and the menu ornaments at 640x448, with
+the emulator at 100% speed. The engine still runs with **no** disc-derived
+assets, so the world geometry, the PSX VRAM textures, the XC fonts and the audio
+are absent from this build. The white squares over the splash are text: the
+`StbTextBackend` atlas is 2048x2048, above the 1024x1024 the GS can address, so
+the backend rejects it (see `tex: rejected` in the GS trace) and each glyph is
+drawn untextured — the next task gives that atlas a PS2 size, like the PSP path
+already does. The frontend also exposed the VRAM budget: gsKit's two
+framebuffers and the z-buffer take 3.28 MiB of the 4 MiB, leaving ~0.7 MiB for
+textures, so sheets are uploaded on demand and the texture manager evicts the
+previous one (the GS trace shows one bind per draw). A 640x360 sheet (900 KiB)
+does not fit and makes gsKit spin looking for room, which is why the cap is
+512x288; reclaiming framebuffer VRAM (a CT16 framebuffer is what most 480i
+titles used) is a follow-up. The 3D scene stays empty until the user's own disc
+image is extracted into the host directory. Next pieces of the port: the text
+atlas, the VRAM budget, the PSX VRAM texture lookups, the retained-mode mesh
+path over the world geometry, and the audio.
