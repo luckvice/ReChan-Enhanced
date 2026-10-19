@@ -106,3 +106,43 @@ while IFS= read -r -d '' source; do
 done < <(find "$SRC" -type f -print0)
 
 echo "host data ready in $DEST/pc"
+
+# ---------------------------------------------------------------- disc data
+# The engine opens the extracted disc through the same relative paths the
+# desktop build uses ("XC/TITLE.1", "RCHARS/JACKIE.RR", "lev01.lcf",
+# "discimage/game.bin") and the PS2 file layer maps them to host:, which PCSX2
+# serves from this directory. Every entry of the repository's bin/ tree is
+# linked here — links, not copies, because the tree is ~1.3 GB and it is the
+# same data the desktop build reads.
+DATA_SRC="$ROOT/bin"
+if [ -d "$DATA_SRC" ]; then
+    linked=0
+    kept=0
+    for entry in "$DATA_SRC"/*; do
+        [ -e "$entry" ] || continue
+        name="$(basename "$entry")"
+        case "$name" in
+            # pc is the desktop art (a link to res/pc); the resized copy above
+            # is what the console can hold. The rest are build outputs or
+            # another platform's runtime directory.
+            pc|psp|switch|rechan|rechan-debug|PSP_TRACE.TXT|imgui.ini|rechan.log)
+                continue
+                ;;
+        esac
+        target="$DEST/$name"
+        if [ -L "$target" ] && [ "$(readlink "$target")" = "$entry" ]; then
+            continue
+        fi
+        if [ -e "$target" ] && [ ! -L "$target" ]; then
+            echo "WARNING: $target exists and is not a link; leaving it in place" >&2
+            kept=$((kept + 1))
+            continue
+        fi
+        rm -f "$target"
+        ln -s "$entry" "$target"
+        linked=$((linked + 1))
+    done
+    echo "disc data linked from $DATA_SRC ($linked new, $kept kept)"
+else
+    echo "WARNING: $DATA_SRC not found; the ELF boots with the frontend only" >&2
+fi

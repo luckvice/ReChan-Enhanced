@@ -62,9 +62,12 @@ PCSX2 2.8.2 with a PS2 BIOS dump:
   (called by `build-remote.sh`) copies `res/pc` there as `dist/ps2/pc` and
   downscales the 1920x1080 desktop art once (fullscreen 16:9 to 640x360, the rest
   to fit 512x512): the EE cannot hold an 8 MiB `stbi_load` buffer per sheet and
-  the GS cannot address a 1920x1080 texture. The original PSX data (`SOUND/`,
-  `XC/`, ...) is not distributed with the engine; place it in the same directory
-  when you have extracted it locally.
+  the GS cannot address a 1920x1080 texture. The same script links every entry of
+  the repository's `bin/` tree (`xc/`, `SOUND/`, `RCHARS/`, `lev*.lcf`, `*.rr`,
+  `discimage/`) into `dist/ps2` as symlinks: the extracted disc is ~1.3 GB, it is
+  the same data the desktop build reads, and nothing is copied per build. Without
+  `bin/` the ELF still boots and shows the frontend, just without the world. The
+  original PSX data is not distributed with the engine.
 * **Screenshots** — `ps2/tools/pcsx2-shot.sh` boots an ELF, waits for the
   emulator log to report that the ELF (not the BIOS) is executing, settles a few
   seconds and captures the window; `ps2/tools/verify-render.py` prints the colour
@@ -133,5 +136,18 @@ the blocky edges into readable text. "PRESS ANY BUTTON TO START" now renders in
 the title screen. The white squares that remain over the splash are the PSX VRAM
 particles, which need textures from the disc.
 
+Step 7, the disc data, is done: with `bin/` reachable the engine loads the real
+assets — `RCHARS/JACKIE.RR` (768 resources, 26 joints, 410 polygons, 123
+animations), the XC fonts and the PSX VRAM palette uploads — and the state
+machine walks `Init -> Title` into `TitleLoop`, holding 640x480p at 60 Hz for as
+long as the emulator runs. Two allocations had to be turned off to get there,
+both of which only appear once the disc is present: `RSDIALOG.DLG` is a 33 MB
+container that the desktop path loads whole into the 32 MiB of the EE, and the
+FAG music preload decodes a full track to PCM in the same frame the title opens.
+The PS2 now skips both (one log line each) — the PSP solved them with streaming
+readers that have no console counterpart yet, so dialogue and music stay silent.
+The white squares over the splash are unchanged: they are PSX VRAM particles and
+their texture lookup is still missing.
+
 Next pieces of the port: the PSX VRAM texture lookups, the retained-mode mesh
-path over the world geometry, and the audio.
+path over the world geometry, and the streaming audio (music, ambience, dialogue).

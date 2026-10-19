@@ -144,6 +144,19 @@ static bool EnsureDialogDataLoaded() {
         return true;
     }
 
+#if defined(RC_PLATFORM_PS2)
+    // RSDIALOG.DLG is a 33 MB container and the EE has 32 MiB in total, most of
+    // it already claimed by the engine by the time the title screen opens.
+    // Loading it whole (the desktop path below) kills the ELF; the streaming
+    // reader the PSP uses has no console counterpart yet.
+    static bool s_dialogDisabledLogged = false;
+    if (!s_dialogDisabledLogged) {
+        s_dialogDisabledLogged = true;
+        LOG("[Dialog] disabled on PS2: SOUND/DIALOG/RSDIALOG.DLG does not fit the EE");
+    }
+    return false;
+#endif
+
 #if defined(RC_PLATFORM_PSP)
     // RSDIALOG.DLG is a 33 MB container, far larger than the PSP's available
     // user heap once the renderer, fonts and WAX samples are resident. Its

@@ -371,8 +371,28 @@ bool Sound::TryPlayMusicOverride(const char* fagPath, f32 volume) {
 }
 #endif
 
+#if defined(RC_PLATFORM_PS2)
+// The PS2 build has no audio backend yet (src/ps2/ps2_audio.cpp is a stub) and
+// the PC path decodes a whole FAG track to PCM, which costs several MiB of the
+// 32 MiB of the EE right when the title screen is opening. Music stays off
+// until the console gets a streaming path like the PSP's.
+static bool Ps2MusicDisabled() {
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        LOG("Sound: music disabled on PS2 (no streaming decoder yet)");
+    }
+    return true;
+}
+#endif
+
 // PC/PSP: decode FAG to PCM, load as AudioSample, play through the dedicated music mix.
 bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
+#if defined(RC_PLATFORM_PS2)
+    (void)fagPath; (void)songIndex; (void)volume;
+    Ps2MusicDisabled();
+    return false;
+#endif
 #if MOD_LOADER
     if (TryPlayMusicOverride(fagPath, volume)) return true;
 #endif
@@ -412,6 +432,11 @@ bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
 }
 
 bool Sound::PlayMusicTrack(const char* fagPath, f32 volume) {
+#if defined(RC_PLATFORM_PS2)
+    (void)fagPath; (void)volume;
+    Ps2MusicDisabled();
+    return false;
+#endif
 #if MOD_LOADER
     if (TryPlayMusicOverride(fagPath, volume)) return true;
 #endif
@@ -468,6 +493,11 @@ bool Sound::PlayMusicTrack(const char* fagPath, f32 volume) {
 // PC: same decode work as PlayMusicTrack, but stops at LoadSample - playback
 // is kicked off later (and cheaply) via StartPreloadedMusic().
 bool Sound::PreloadMusicTrack(const char* fagPath, f32 volume) {
+#if defined(RC_PLATFORM_PS2)
+    (void)fagPath; (void)volume;
+    Ps2MusicDisabled();
+    return false;
+#endif
 #if defined(RC_PLATFORM_PSP)
     // Streaming starts immediately; the compressed FAG stays resident and no
     // decoded preload buffer is allocated during the loading-screen phase.
