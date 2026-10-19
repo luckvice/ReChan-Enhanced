@@ -2,9 +2,15 @@
 <tr>
 <td valign="middle">
 
-# ReChan
-**ReChan** is a reverse engineering project focused on reimplementing the game:\
-**Jackie Chan Stuntmaster**.
+# ReChan — Enhanced & Optimized Edition
+**By Luckvice**
+
+**ReChan** is an open reverse-engineering reimplementation of the classic PlayStation game **Jackie Chan Stuntmaster** (SLUS-00684).
+
+This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive gameplay experience to modern and retro hardware, featuring major performance overhauls, dedicated native console ports, visual refinements, and extensive quality-of-life additions.
+
+> [!NOTE]
+> **Special Thanks & Reconhecimento**: Grandes agradecimentos ao criador original ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) e aos contribuidores da base original de engenharia reversa. O propósito deste fork é levar a experiência de *Jackie Chan Stuntmaster* ao seu mais alto nível de fidelidade e performance.
 
 ### To use this project:
 * You **must own a legal copy** of *Jackie Chan Stuntmaster* (SLUS-00684).
@@ -12,8 +18,8 @@
 * All rights to the original game, assets and intellectual property belong to their respective owners.
 
 <br>
-<img src="https://img.shields.io/github/actions/workflow/status/SilverwireGames/ReChan/build.yml?branch=main" />
-<img src="https://img.shields.io/badge/license-MIT-green" />
+<img src="https://img.shields.io/badge/optimized%20by-Luckvice-blue?style=flat-square" />
+<img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
 </td>
 
 <td align="center" valign="middle" width="256">
@@ -23,16 +29,14 @@
 </table>
 
 ## About
-* Target version: **SLUS-00684**
+* Target version: **SLUS-00684** (NTSC-U)
 * Development started: **October 2025**
 
 The project focuses on:
-* reconstructing game logic and systems
-* rebuilding data structures and formats
-* matching original runtime behavior
-
-A large part of the work has been dedicated to documentation and understanding
-the original codebase before reimplementation.
+* Reconstructing game logic and original systems
+* Rebuilding data structures and matching authentic runtime behavior
+* Providing native, ultra-optimized target ports for iconic gaming platforms (PSP, macOS Metal, PS2 WIP)
+* Elevating performance, visual fidelity, and audio quality beyond the original hardware limits
 
 ## Enhancements
 Beyond reconstruction, the project also introduces improvements over the original PlayStation version:
@@ -124,6 +128,24 @@ backend** (no OpenGL translation layer), with the full desktop feature set:
 
 To build, see the [build guide](docs/visionmaster/business/sources/BUILDING.md) (`premake5 gmake2` +
 `make config=release`).
+
+### PlayStation 2 — Native GS Edition (Work In Progress 🚧)
+
+A fully native PlayStation 2 port running directly on the console's **Emotion Engine (EE)** and rendering onto the **Graphics Synthesizer (GS)** hardware through a specialized `pddi` backend and `gsKit`:
+
+- **Native 480p Progressive Scan**: Presents at native $640 \times 480$ progressive output (Mode 80 @ 59.94 Hz) with double-buffering.
+- **Dedicated 16-bit VRAM Architecture**: Implements 16-bit framebuffers and texture storage mode (`GS_PSM_CT16` / RGBA5551, 2 bytes/texel), freeing ~2.12 MiB of GS memory. Fullscreen $640 \times 360$ frontend layers (`background`, `jackie`, `jcslogo`), font atlas, and particle systems reside simultaneously in VRAM with **zero thrashing / zero per-frame evictions**.
+- **Hardware-Tailored Rendering**: Fixed-function GS rasterization replacing desktop programmable shaders, featuring textured and Gouraud primitive queues, hardware alpha-blending, and rich color reproduction without blowout.
+- **Native Subsystems**: Integrated `libpad` controller polling, IOP driver initialization, and DMA GIF data transfers.
+- **Verification**: Tested on both PCSX2 and real PlayStation 2 hardware via `host:` filesystem mapping.
+
+For build and development details, see [ps2/README.md](ps2/README.md).
+
+## Credits & Acknowledgments
+
+- **Original Project Creator**: Sinceros agradecimentos e profundo reconhecimento a [SilverwireGames](https://github.com/SilverwireGames/ReChan) pelo grandioso trabalho original de engenharia reversa e reconstrução da base de código de *Jackie Chan Stuntmaster*.
+- **Luckvice**: Criador e mantenedor deste fork, responsável pelas versões otimizadas, concepção da *RE:Chan HD Edition* para PSP, backend nativo Metal para macOS, porte nativo para PlayStation 2 (GS), otimizações profundas de memória/CPU e aprimoramentos para a experiência definitiva.
+- **Comunidade & Contribuidores**: A todos os fãs e pesquisadores que colaboram com testes, documentação e suporte para manter vivo o legado deste clássico.
 
 ## Legal and Asset Notice
 
