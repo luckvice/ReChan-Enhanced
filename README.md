@@ -12,12 +12,17 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 > [!NOTE]
 > **Special Thanks & Reconhecimento**: Grandes agradecimentos ao criador original ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) e aos contribuidores da base original de engenharia reversa. O propósito deste fork é levar a experiência de *Jackie Chan Stuntmaster* ao seu mais alto nível de fidelidade e performance.
 
+> [!IMPORTANT]
+> **Status Oficial do Projeto**: Estamos oficialmente na **Beta 3**! O foco atual é a consolidação de estabilidade, desempenho e polimento geral nos ports e na base, preparando o terreno para a chegada da **RC1 (Release Candidate 1) em breve**.
+
 ### To use this project:
 * You **must own a legal copy** of *Jackie Chan Stuntmaster* (SLUS-00684).
 * You must provide your own game disc image.
 * All rights to the original game, assets and intellectual property belong to their respective owners.
 
 <br>
+<img src="https://img.shields.io/badge/milestone-Beta%203-orange?style=flat-square" />
+<img src="https://img.shields.io/badge/next-RC1%20Soon-yellow?style=flat-square" />
 <img src="https://img.shields.io/badge/optimized%20by-Luckvice-blue?style=flat-square" />
 <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
 </td>
@@ -31,6 +36,7 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 ## About
 * Target version: **SLUS-00684** (NTSC-U)
 * Development started: **October 2025**
+* Current status: **Beta 3** (RC1 em breve)
 
 The project focuses on:
 * Reconstructing game logic and original systems
@@ -83,7 +89,7 @@ the full feature lists of each edition.
 
 ## Platform editions
 
-### PSP — *RE:Chan HD Edition* (Beta 1)
+### PSP — *RE:Chan HD Edition* (Beta 3 — RC1 em breve)
 
 A fully native PSP build (no emulation) compiled with PSPSDK, targeting the
 fixed 480×272 display. It ships as its own edition with platform features on
@@ -110,7 +116,7 @@ top of the base game:
 Requirements: PSP-2000, PSP-3000 or PSP Go with custom firmware or HEN, an
 NTSC-U (SLUS-00684) disc image, and ~1.3 GB free during install (~600 MB
 after). The PSP-1000 does not have enough memory and is not supported. Install
-package and full notes: `dist/psp-release/` (beta 1).
+package and full notes: `dist/psp-release/` (Beta 3).
 
 ### macOS — Metal Edition
 
