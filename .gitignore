@@ -13,6 +13,7 @@ vendor/devkitpro/
 *.i64
 *.idb
 .vs/
+.DS_Store
 
 DontShip/
 shipping/
