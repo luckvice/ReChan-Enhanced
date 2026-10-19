@@ -1,7 +1,7 @@
 #pragma once
 #include "core.h"
 #include "pc/apppaths.h"
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 #include <thread>
 #include <atomic>
 #endif
@@ -42,13 +42,15 @@ private:
     void ScanThreadFunc();
     void ExtractThreadFunc(std::string imagePath);
 
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
     // Written by the extraction thread, polled by the menu.
     volatile State m_state{ State::Idle };
     volatile s64 m_bytesDone = 0;
     volatile s64 m_bytesTotal = 0;
     int m_thread = -1;
+#if defined(RC_PLATFORM_PSP)
     static int ThreadEntry(unsigned int args, void* argp);
+#endif
 #else
     std::atomic<State> m_state{ State::Idle };
     std::atomic<s64> m_bytesDone{ 0 };
@@ -56,7 +58,7 @@ private:
 #endif
     std::string m_error;
     std::vector<std::string> m_candidates;
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     std::thread m_workerThread;
 #endif
 };

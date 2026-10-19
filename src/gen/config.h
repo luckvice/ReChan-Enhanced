@@ -8,8 +8,11 @@
 // When disabled, DebugCam uses the original PSX pad-button controls.
 #define IMPROVED_DEBUG_CAM 1
 
-// Skip initial intros and goes straight into title screen
+#if defined(RC_PLATFORM_PS2)
+#define SKIP_INTRO 1
+#else
 #define SKIP_INTRO 0
+#endif
 
 // Adds support to any aspect ratio, fixes ui and camera.
 #define FIX_ASPECT_RATIO 1
@@ -46,7 +49,7 @@
 // replacement assets (PNG textures, GLB models, WAV sounds, JSON data) before
 // falling back to original PSX-format assets. Set to 0 to keep original code
 // path fully intact with zero mod-related overhead.
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define MOD_LOADER 0
 #else
 #define MOD_LOADER 1
@@ -78,28 +81,28 @@
 // world geometry) still gets decoded at native resolution either way, so
 // toggling never changes vanilla (unmodded) visuals -- it only lifts the
 // resolution/palette cap for ModLoader texture overrides.
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define REAL_TEXTURE_RENDERING 0
 #else
 #define REAL_TEXTURE_RENDERING 1
 #endif
 
 // Downloads a release archive and self-restarts the process
-#if defined(RC_PLATFORM_NULL) || defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_NULL) || defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define AUTO_UPDATER 0
 #else
 #define AUTO_UPDATER (CUSTOM_MENU && 1)
 #endif
 
 // Graphics improvements shadows and post processing.
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define MODERN_GRAPHICS 0
 #else
 #define MODERN_GRAPHICS 1
 #endif
 
 // Spatial audio path for positional world sfx.
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define MODERN_SPATIAL_AUDIO 0
 #else
 #define MODERN_SPATIAL_AUDIO 1
@@ -109,7 +112,7 @@
 // chroma upsampling in the software MDEC decoder, and a bicubic+sharpen
 // resample shader for the fullscreen draw. When disabled, movies render
 // exactly as on original PSX hardware (nearest filtering, blocky chroma).
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 #define MODERN_MOVIE_FILTERING 0
 #else
 #define MODERN_MOVIE_FILTERING 1

@@ -11,40 +11,97 @@ TARGET ?= rechan
 
 ROOT := $(abspath $(CURDIR)/..)
 
-# The ps2dev container ships the toolchain in $PS2DEV/ee/bin but does not put it
-# on PATH; without this, Makefile.pref cannot find mips64r5900el-ps2-elf-gcc.
 PS2DEV ?= /usr/local/ps2dev
 export PATH := $(PS2DEV)/ee/bin:$(PATH)
 
 EE_BIN = $(TARGET).elf
-EE_OBJS = main.o ps2render.o ps2gs.o
 
-# The first rule below is the explicit ps2render.o rule and Makefile.eeglobal
-# (included at the bottom) has no catch-all "all" target, so the default goal —
-# the ELF — has to be stated here, after EE_BIN exists.
+# The step-1 synthetic harness (ps2/test_pddi_main.cpp) is kept as a regression
+# entry for the GS backend — ps2/tools/verify-render.py checks its colour
+# pattern — but it is not part of the game build. Select it instead of the engine
+# with:
+#   RECHAN_PS2_TARGET=rechan-pddi bash ps2/build-remote.sh
+ifeq ($(TARGET),rechan-pddi)
+SOURCES := $(ROOT)/ps2/test_pddi_main.cpp \
+	$(ROOT)/vendor/libp3d/pddi/ps2/ps2render.cpp \
+	$(ROOT)/vendor/libp3d/pddi/ps2/ps2gs.cpp
+else
+
+SRC_DIRS = \
+	$(ROOT)/src/ai \
+	$(ROOT)/src/fe \
+	$(ROOT)/src/gen \
+	$(ROOT)/src/radlib \
+	$(ROOT)/src/snd \
+	$(ROOT)/src/xclib \
+	$(ROOT)/vendor/libp3d/p3d
+
+SOURCES = $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp))
+SOURCES += $(ROOT)/src/extra/cheats.cpp \
+	$(ROOT)/src/extra/colorpulse.cpp \
+	$(ROOT)/src/extra/customhudmgr.cpp \
+	$(ROOT)/src/extra/customtext.cpp \
+	$(ROOT)/src/extra/dialogpreview.cpp \
+	$(ROOT)/src/extra/fecustommenumgr.cpp \
+	$(ROOT)/src/extra/hudwsfix.cpp \
+	$(ROOT)/src/extra/jsondataloader.cpp \
+	$(ROOT)/src/extra/shadowcsm.cpp \
+	$(ROOT)/src/extra/wavloader.cpp
+SOURCES += $(ROOT)/src/pc/autotest.cpp \
+	$(ROOT)/src/pc/coldebug.cpp \
+	$(ROOT)/src/pc/controllerlight.cpp \
+	$(ROOT)/src/pc/inputaction.cpp \
+	$(ROOT)/src/pc/textbackend.cpp \
+	$(ROOT)/src/pc/textmgr.cpp \
+	$(ROOT)/src/pc/tim.cpp
+SOURCES += $(ROOT)/src/ps2/ps2_audio.cpp \
+	$(ROOT)/src/ps2/ps2_fileio.cpp \
+	$(ROOT)/src/ps2/ps2_log.cpp \
+	$(ROOT)/src/ps2/ps2_stubs.cpp \
+	$(ROOT)/vendor/libp3d/pddi/ps2/ps2render.cpp \
+	$(ROOT)/vendor/libp3d/pddi/ps2/ps2gs.cpp
+
+# Filter out desktop-only and standalone test implementations
+SOURCES := $(filter-out \
+	$(ROOT)/vendor/libp3d/p3d/fileio.cpp \
+	$(ROOT)/src/extra/psxdiscextractor.cpp \
+	$(ROOT)/src/pc/audio.cpp \
+	$(ROOT)/src/pc/crashreporter.cpp \
+	$(ROOT)/src/pc/debugui.cpp \
+	$(ROOT)/src/pc/log.cpp \
+	$(ROOT)/src/pc/miniaudio_impl.cpp \
+	$(ROOT)/src/pc/settings.cpp \
+	$(ROOT)/src/radmovie/movieplayer.cpp \
+	$(ROOT)/src/extra/assetexporter.cpp \
+	$(ROOT)/src/extra/assetexporter_ui.cpp \
+	$(ROOT)/src/extra/autoupdater.cpp \
+	$(ROOT)/src/extra/gltfloader.cpp \
+	$(ROOT)/src/extra/modloader.cpp \
+	$(ROOT)/src/extra/parameterdata.cpp \
+	$(ROOT)/src/extra/realtexture.cpp,$(SOURCES))
+
+endif
+
+EE_OBJS = $(SOURCES:.cpp=.o)
+
 .DEFAULT_GOAL := $(EE_BIN)
 
-# ps2sdk headers, gsKit and libp3d (the pddi interface the backend implements).
 GSKIT_DIR ?= $(PS2DEV)/gsKit
-EE_INCS += -I$(ROOT)/vendor/libp3d -I$(GSKIT_DIR)/include
+EE_INCS += -I$(ROOT) \
+           -I$(ROOT)/src \
+           -I$(ROOT)/vendor/libp3d \
+           -I$(ROOT)/vendor/stb \
+           -I$(GSKIT_DIR)/include
 EE_LDFLAGS += -L$(GSKIT_DIR)/lib
 
-# gsKit + DMA + debug (scr_printf/TTY), the pad, and libstdc++ for the backend's
-# std::vector/std::string/dynamic_cast.
-EE_LIBS += -lgskit -ldmakit -lpad -ldebug -lstdc++
+EE_LIBS += -lgskit -ldmakit -lpad -ldebug -lstdc++ -lm
 
-EE_CFLAGS += -O2 -G0 -Wall
-EE_CXXFLAGS += -O2 -G0 -Wall
+EE_CFLAGS += -DRC_PLATFORM_PS2 -DPS2 -DIMGUI_DISABLE -O2 -G0 -Wall
+EE_CXXFLAGS += -DRC_PLATFORM_PS2 -DPS2 -DIMGUI_DISABLE -O2 -G0 -Wall \
+               -Wno-sign-compare -Wno-unused-variable -Wno-unused-function \
+               -Wno-strict-aliasing
+
 EE_LDFLAGS += -Wl,-zmax-page-size=128
-
-# The pddi backend lives under vendor/, outside this directory, so it needs an
-# explicit rule (the implicit %.o rules only cover sources next to the Makefile).
-# ps2render.cpp is deliberately free of gsKit; ps2gs.cpp is where ps2sdk lives.
-ps2render.o: $(ROOT)/vendor/libp3d/pddi/ps2/ps2render.cpp $(ROOT)/vendor/libp3d/pddi/ps2/ps2render.h
-	$(EE_CXX) $(EE_CXXFLAGS) $(EE_INCS) -c $< -o $@
-
-ps2gs.o: $(ROOT)/vendor/libp3d/pddi/ps2/ps2gs.cpp $(ROOT)/vendor/libp3d/pddi/ps2/ps2gs.h
-	$(EE_CXX) $(EE_CXXFLAGS) $(EE_INCS) -c $< -o $@
 
 include $(PS2SDK)/samples/Makefile.pref
 include $(PS2SDK)/samples/Makefile.eeglobal

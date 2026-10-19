@@ -27,11 +27,14 @@ mkdir -p "$OUT"
 # the ps2 backend and the maths headers core.h pulls in. vendor/libp3d/vendor
 # (79 MB of third-party trees) is not needed to build this target and is left
 # out on purpose.
-tar -C "$ROOT" -czf "$TARBALL" \
+tar --exclude='*.o' -C "$ROOT" -czf "$TARBALL" \
     ps2 \
+    src \
     vendor/libp3d/core.h \
     vendor/libp3d/p3d \
-    vendor/libp3d/pddi
+    vendor/libp3d/pddi \
+    vendor/libp3d/vendor/stb \
+    vendor/stb
 trap 'rm -f "$TARBALL"' EXIT
 
 echo "==> sending sources to $HOST:$REMOTE_DIR"
@@ -40,8 +43,15 @@ scp -q "$TARBALL" "$HOST:$REMOTE_DIR/src.tgz"
 
 echo "==> building in container $IMAGE"
 # The ps2dev image is Alpine and ships no make; install it in the container.
-ssh "$HOST" "cd $REMOTE_DIR && tar xzf src.tgz && rm -f src.tgz && docker run --rm -v $REMOTE_DIR:/work -w /work/ps2 $IMAGE sh -c 'apk add --no-cache make >/dev/null && make' 2>&1"
+ssh "$HOST" "cd $REMOTE_DIR && tar xzf src.tgz && rm -f src.tgz && docker run --rm -v $REMOTE_DIR:/work -w /work/ps2 $IMAGE sh -c 'apk add --no-cache make >/dev/null && make TARGET=$TARGET' 2>&1"
 
 echo "==> fetching $TARGET.elf into dist/ps2/"
 scp -q "$HOST:$REMOTE_DIR/ps2/$TARGET.elf" "$OUT/$TARGET.elf"
 ls -l "$OUT/$TARGET.elf"
+
+echo "==> linking the game data the engine reads through host:"
+# PCSX2 maps host: to the ELF's own directory, so the assets the engine opens
+# as "pc/..." have to be reachable from there. The HD assets live in res/pc;
+# the original PSX data (SOUND/, XC/, ...) is not distributed with the engine
+# and is picked up from the same place when the user extracted it there.
+ln -sfn "$ROOT/res/pc" "$OUT/pc"

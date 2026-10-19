@@ -3,7 +3,7 @@
 #include <cstdarg>
 #include <string>
 #include <vector>
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 #include <fstream>
 #include <mutex>
 #endif
@@ -32,7 +32,7 @@ private:
     void WriteToConsole(const char* text);
 
 private:
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     std::ofstream m_File;
     std::mutex m_Mutex;
 #endif

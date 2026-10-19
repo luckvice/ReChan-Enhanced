@@ -1,4 +1,4 @@
-﻿#include "common.h"
+#include "common.h"
 #include "p3d/context.h"
 #include "p3d/fileio.h"
 #include "p3d/input.h"
@@ -24,7 +24,7 @@
 #include "gen/geometry.h"
 #include "snd/rsevent.h"
 #include "extra/fecustommenumgr.h"
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 #include "extra/assetexporter.h"
 #endif
 #include "pc/apppaths.h"
@@ -47,7 +47,7 @@
 
 #include <vector>
 #include <algorithm>
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 #include <filesystem>
 #endif
 #include <string>
@@ -161,7 +161,7 @@ static bool OnWndProc(const pddiWndMessage& msg) {
     return false;
 }
 
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 // Fall back to the executable's folder for game data.
 static bool EnsureDataDirectory() {
     if (p3d::io::DirExists("pc")) {
@@ -180,19 +180,18 @@ static bool EnsureDataDirectory() {
 #endif
 
 int main(int argc, char** argv) {
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     const bool dataDirFound = EnsureDataDirectory();
 #endif
-#if !defined(RC_PLATFORM_PSP)
-    // On PSP the log is opened later (PSP_LOG.TXT) only in builds that want it;
-    // a release EBOOT must not touch the Memory Stick per message.
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
+    // On PSP/PS2 the log is opened later or handled by the platform layer.
     Log::Get().Init();
 #endif
     CrashReporter::Install();
     LOG_ALWAYS("%s %s", JCS_TITLE, GAME_VERSION);
     AutoTest_ParseArgs(argc, argv);
 
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     if (!dataDirFound) {
         LOG_ALWAYS("[main] 'pc' data folder not found next to the executable or in the working directory");
         CrashReporter::ShowFatalMessage(
@@ -236,7 +235,7 @@ int main(int argc, char** argv) {
 
     // Headless verification/export path used by automated round-trip checks
     // and mod authors who want the same output as the DebugUI button.
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     if (argc >= 2 && std::strcmp(argv[1], "--export-assets") == 0) {
         const char* outputDir = (argc >= 3 && argv[2] && argv[2][0])
             ? argv[2]
@@ -302,9 +301,14 @@ int main(int argc, char** argv) {
 #endif
 #endif
 
+#if defined(RC_PLATFORM_PS2)
+    Log::Get().Init("host:/rechan-ps2.log");
+    LOG_ALWAYS("[RECHAN-PS2] ReChan native PlayStation 2 boot\n");
+#endif
+
     // Must precede CreateContext: the backend compiles its programs there and
     // pddi carries no GLSL of its own.
-#if !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     RechanInstallShaderSources();
 #endif
 
@@ -577,6 +581,13 @@ int main(int argc, char** argv) {
         g_frameProfile.drawSubmitMs = 0.0f;
         g_frameProfile.swapMs = 0.0f;
         bool running = game.Step();
+#if defined(RC_PLATFORM_PS2)
+        static u32 s_ps2Frame = 0;
+        if (++s_ps2Frame % 30 == 0) {
+            LOG_ALWAYS("[main] PS2 Frame %lu, state=%d fps=%.1f\n",
+                       (unsigned long)s_ps2Frame, (int)game.GetState(), g_time ? g_time->fps : 0.0f);
+        }
+#endif
 #if defined(RC_PLATFORM_PSP) && defined(PSP_STAGE_DIAGNOSTIC)
         if (pspStageMainProbe) {
             Log::Get().LogMessage("[PSP Main Stage] after step frame=%lu state=%d running=%u",

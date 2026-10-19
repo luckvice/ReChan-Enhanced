@@ -13,7 +13,7 @@ struct MovieSubtitleEntry {
     std::string text;
 };
 
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 // PSP MoviePlayer (src/psp/psp_movieplayer.cpp): streams the .STR file from
 // the Memory Stick instead of loading it, decodes audio as it plays on its
 // own hardware channel and paces video on that audio clock.

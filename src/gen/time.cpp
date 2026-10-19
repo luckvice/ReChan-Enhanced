@@ -2,6 +2,8 @@
 #include <cmath>
 #if defined(RC_PLATFORM_PSP)
 #include <pspkernel.h>
+#elif defined(RC_PLATFORM_PS2)
+// PS2 uses COP0 Count register
 #else
 #include <chrono>
 #include <thread>
@@ -107,6 +109,15 @@ s32 Time::BeginPlayFixedStep() {
 f64 Time::GetTimeInSeconds() {
 #if defined(RC_PLATFORM_PSP)
     return static_cast<f64>(sceKernelGetSystemTimeWide()) / 1000000.0;
+#elif defined(RC_PLATFORM_PS2)
+    static u32 s_lastCount = 0;
+    static u64 s_totalCycles = 0;
+    u32 now;
+    __asm__ volatile("mfc0 %0, $9" : "=r"(now));
+    if (s_lastCount == 0) s_lastCount = now;
+    s_totalCycles += (u32)(now - s_lastCount);
+    s_lastCount = now;
+    return (f64)s_totalCycles / 294912000.0;
 #else
     static auto sStart = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
@@ -119,6 +130,13 @@ void Time::Sleep(f32 seconds) {
     if (seconds > 0.0f) {
         sceKernelDelayThread(static_cast<unsigned int>(seconds * 1000000.0f));
     }
+#elif defined(RC_PLATFORM_PS2)
+    if (seconds > 0.0f) {
+        const f64 start = GetTimeInSeconds();
+        while ((GetTimeInSeconds() - start) < (f64)seconds) {
+            __asm__ volatile("nop");
+        }
+    }
 #else
     if (seconds > 0.0f) {
         std::this_thread::sleep_for(std::chrono::duration<f32>(seconds));
@@ -127,11 +145,8 @@ void Time::Sleep(f32 seconds) {
 }
 
 void Time::WaitForFrameEnd(f64 frameStart) const {
-#if defined(RC_PLATFORM_PSP)
-    // pspDisplay::SwapBuffers() already submits the GU list and blocks on the
-    // next vblank. Sleeping again here would add a second frame limiter after
-    // the synchronized swap, producing jitter and occasionally dropping the
-    // presentation cadence below 60 Hz. Keep the argument for the shared API.
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+    // Display SwapBuffers() already synchronizes with vsync.
     (void)frameStart;
     return;
 #else

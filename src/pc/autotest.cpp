@@ -15,9 +15,9 @@
 #include <string>
 #include <vector>
 
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 // assetexporter.cpp (which owns the implementation on desktop) is not part of
-// the PSP build, so autotest.cpp provides stbi_write_png there.
+// the PSP or PS2 build, so autotest.cpp provides stbi_write_png there.
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #endif
 #include "vendor/stb/stb_image_write.h"

@@ -47,7 +47,7 @@ static constexpr s32 kGrabGamepadButton = GpBtn::B;
 #endif
 
 
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
 static const s32 kBindableKeys[] = {
     KEY_SPACE,
     KEY_APOSTROPHE,
@@ -305,7 +305,7 @@ ActionInput::ActionInput() {
 bool ActionInput::PollAction(Action action, PlatformInput* platform) const {
     const ActionBinding& b = bindings[action];
 
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     for (s32 slot = 0; slot < kDesktopBindingSlotCount; slot++) {
         if (b.keyboardKeys[slot] && platform->IsKeyDown(b.keyboardKeys[slot])) {
             return true;
@@ -346,7 +346,7 @@ void ActionInput::Update(PlatformInput* platform) {
         return;
     }
 
-#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP)
+#if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     for (s32 i = 0; i < 3; i++) {
         mousePrev[i] = mouseDown[i];
         mouseDown[i] = platform->IsMouseButtonDown(i);

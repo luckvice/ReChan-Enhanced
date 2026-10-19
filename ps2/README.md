@@ -53,11 +53,18 @@ PCSX2 2.8.2 with a PS2 BIOS dump:
   to the ELF's own directory, so it lands on `dist/ps2/rechan-ps2.log`. This
   needs `HostFs = true` under `[EmuCore]` in
   `~/Library/Application Support/PCSX2/inis/PCSX2.ini` (a backup of the original
-  lives next to it as `PCSX2.ini.bak-rechan`).
+  lives next to it as `PCSX2.ini.bak-rechan`). The GS backend writes its own
+  trace to `host:/rechan-ps2-gs.log`.
 * **EE TTY** — `printf` from the EE does not reach `-logfile` with this setup,
   which is why the file channel above exists.
-* **Screenshots** — `ps2/tools/pcsx2-shot.sh` boots an ELF, waits for the game
-  window and captures it; `ps2/tools/verify-render.py` prints the colour
+* **Game data** — the engine opens its assets as `pc/...` through `host:`, so
+  they have to be reachable from the ELF's directory: `build-remote.sh` links
+  `res/pc` there as `dist/ps2/pc`. The original PSX data (`SOUND/`, `XC/`, ...)
+  is not distributed with the engine; place it in the same directory when you
+  have extracted it locally.
+* **Screenshots** — `ps2/tools/pcsx2-shot.sh` boots an ELF, waits for the
+  emulator log to report that the ELF (not the BIOS) is executing, settles a few
+  seconds and captures the window; `ps2/tools/verify-render.py` prints the colour
   histogram, checks the expected pattern colours and can crop the game area to a
   640x448 PNG.
 
@@ -72,10 +79,21 @@ bytes.
 
 ## Status
 
-Step 1 (this directory's `main.cpp`) is done: the ELF boots in PCSX2, brings up
-the GS at 640x448 NTSC and renders — the clear plus queued sprites from both the
-persistent and the oneshot queues, over a 600-frame loop at ~60 Hz.
+Step 1 is done: the ELF boots in PCSX2, brings up the GS at 640x448 NTSC and
+renders — the clear plus queued sprites from both the persistent and the oneshot
+queues, over a 600-frame loop at ~60 Hz. That synthetic harness now lives in
+`ps2/test_pddi_main.cpp` and is not part of the game build any more.
 
-Next steps for the port: the PDDI GS backend (`vendor/libp3d/pddi/ps2`), the
-platform services (`src/ps2`: file I/O and ISO, audio via audsrv, timer/vsync,
-controller) and then the game itself.
+Step 2 is done: the PDDI GS backend sits in `vendor/libp3d/pddi/ps2` and the
+platform services in `src/ps2` (file I/O over `host:`, EE clock, audio stubs,
+desktop-only stubs).
+
+Step 3, the engine itself, is integrated: `rechan.elf` is built from the real
+sources (`src/gen`, `src/ai`, `src/fe`, `src/radlib`, `src/snd`, `src/xclib`,
+`vendor/libp3d/p3d`) with `-DRC_PLATFORM_PS2`, boots through `Game::Open()` and
+runs the `Game::Step()` loop at a self-reported 60 Hz, reading its data through
+`host:` — with no EE exceptions and only the assets the user has to provide
+missing from the log. What is still blank is the picture: the game reaches its
+state machine but draws nothing visible yet, so the retained-mode mesh path
+(`pddiPrimBuffer` over the world geometry), the PSX VRAM/texture lookups and the
+render targets are the next pieces of the port.
