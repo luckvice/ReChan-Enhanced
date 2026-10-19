@@ -678,6 +678,8 @@ private:
     // texture fetch and blend fill on the GE without changing the output.
     TitleLayerBounds m_titleJackieBounds;
     TitleLayerBounds m_titleLogoBounds;
+#endif
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
     // Soft white disc tinted per spark: one batched quad per layer instead of
     // two unbatched 8-segment triangle fans (and 64 sin/cos) per particle.
     tTexture* m_titleDebrisDotTexture = nullptr;

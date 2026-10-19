@@ -97,13 +97,15 @@ static bool DecodeNextUtf8(const char* text, s32 len, s32& cursor, u32& outCodep
 class StbTextBackend : public ITextBackend {
 public:
     static constexpr s32 kLayoutReferencePixelHeight = 32;
-#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+#if defined(RC_PLATFORM_PS2)
+    static constexpr s32 kAtlasSize = 256;
+    static constexpr u32 kOversampleX = 1;
+    static constexpr u32 kOversampleY = 1;
+#elif defined(RC_PLATFORM_PSP)
     // The PSP GE supports texture pages up to 512², and the PS2 GS addresses at
     // most 1024x1024 while only ~2.2 MiB of its 4 MiB of VRAM are left for
-    // textures at 480p (a 512² RGBA atlas is 1 MiB and fits). A 512² atlas is
-    // enough for the native UI when the rarely used extended glyph block is
-    // omitted; larger atlases fail to sample on PPSSPP/real hardware and are
-    // rejected outright by the GS backend.
+    // textures at 480p. A 512² atlas is enough for the native UI when the
+    // rarely used extended glyph block is omitted.
     static constexpr s32 kAtlasSize = 512;
     static constexpr u32 kOversampleX = 1;
     static constexpr u32 kOversampleY = 1;
@@ -153,7 +155,11 @@ public:
         f32 solidU = 0.0f;
         f32 solidV = 0.0f;
     };
+#if defined(RC_PLATFORM_PS2)
+    static constexpr s32 kSharedAtlasSize = 256;
+#else
     static constexpr s32 kSharedAtlasSize = 512;
+#endif
 
     struct FontRecord {
         TextFontHandle handle = 0;
@@ -638,7 +644,9 @@ private:
         struct RangeDef { u32 first; s32 count; };
         static const RangeDef kRanges[] = {
             { 32, 95 },        // Basic Latin
+#if !defined(RC_PLATFORM_PS2)
             { 160, 96 },       // Latin-1 Supplement
+#endif
 #if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
             { 0x0100, 128 },   // Latin Extended-A
             { 0x0180, 208 },   // Latin Extended-B subset

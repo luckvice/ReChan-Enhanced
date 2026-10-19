@@ -81,7 +81,7 @@ void ps2Texture::SetData(int w, int h, int bppIn, int alphaDepthIn, const void* 
     else if (bpp <= 8) {
         format = PS2GS_FORMAT_CLUT8;
     }
-    else if (bpp <= 16) {
+    else if (bpp <= 16 || w >= 512 || h >= 360) {
         format = PS2GS_FORMAT_RGBA16;
     }
 
@@ -316,9 +316,30 @@ void ps2Display::GetVideoMode(int index, pddiVideoMode& mode) {
     mode.refreshRate = 60;
 }
 
-// ps2Context
+ps2Context::ps2Context(ps2Display* display) : gs(display != nullptr ? display->Gs() : nullptr) {
+    decodeScratch.resize(256 * 256 * 4);
+    pageCache.resize(kPageCacheCapacity);
+    for (auto& entry : pageCache) {
+        entry.texture = ps2gs_texture_create();
+    }
+}
 
-ps2Context::ps2Context(ps2Display* display) : gs(display != nullptr ? display->Gs() : nullptr) {}
+ps2Context::~ps2Context() {
+    for (auto& entry : pageCache) {
+        if (entry.texture != nullptr) {
+            ps2gs_texture_destroy(entry.texture);
+            entry.texture = nullptr;
+        }
+    }
+    pageCache.clear();
+    for (auto& img : vramImages) {
+        if (img.pixels != nullptr) {
+            std::free(img.pixels);
+            img.pixels = nullptr;
+        }
+    }
+    vramImages.clear();
+}
 
 void ps2Context::Clear(int flags) {
     if (gs == nullptr) {
@@ -616,6 +637,306 @@ void ps2Context::DrawCircle(pddiBaseShader* shader, float centerX, float centerY
     }
 }
 
+ps2Context::VramImage* ps2Context::GetVram(u32 handle) {
+    if (handle == 0 || handle > vramImages.size()) {
+        return nullptr;
+    }
+    VramImage& img = vramImages[handle - 1];
+    return img.pixels != nullptr ? &img : nullptr;
+}
+
+void ps2Context::InvalidatePages(u32 handle) {
+    for (auto& entry : pageCache) {
+        if (entry.handle == handle) {
+            entry.handle = 0;
+        }
+    }
+}
+
+void ps2Context::InvalidatePagesRect(u32 handle, int minX, int minY, int maxX, int maxY) {
+    auto overlaps = [](int aMin, int aMax, int bMin, int bMax) {
+        return aMin < bMax && bMin < aMax;
+    };
+
+    for (auto& entry : pageCache) {
+        if (entry.handle != handle) {
+            continue;
+        }
+        const u32 depth = (entry.tpage >> 7) & 3u;
+        const int pageX = static_cast<int>(entry.tpage & 0x0fu) * 64;
+        const int pageY = static_cast<int>((entry.tpage >> 4) & 1u) * 256;
+        const int pageWordsWide = depth == 0 ? 64 : (depth == 1 ? 128 : 256);
+
+        const int clutX = static_cast<int>(entry.cba & 0x3fu) * 16;
+        const int clutY = static_cast<int>((entry.cba >> 6) & 0x1ffu);
+        const int clutWordsWide = (depth == 0) ? 16 : 256;
+
+        const bool pageHit = overlaps(pageX, pageX + pageWordsWide, minX, maxX)
+                          && overlaps(pageY, pageY + 256, minY, maxY);
+        const bool clutHit = overlaps(clutX, clutX + clutWordsWide, minX, maxX)
+                          && (clutY >= minY && clutY < maxY);
+
+        if (pageHit || clutHit) {
+            entry.handle = 0;
+        }
+    }
+}
+
+void ps2Context::SetVRAMHandle(u32 handle) {
+    vramHandle = handle;
+}
+
+void ps2Context::SetTexInfoOverride(bool enabled, u32 texInfoWord) {
+    texInfoOverrideEnabled = enabled;
+    texInfoOverrideWord = texInfoWord;
+}
+
+u32 ps2Context::CreateVRAMTexture(int w, int h, const u16* data) {
+    if (w <= 0 || h <= 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < vramImages.size(); ++i) {
+        VramImage& img = vramImages[i];
+        if (img.pixels != nullptr) {
+            if (i == 0 && img.width == w && img.height == h) {
+                InvalidatePages(static_cast<u32>(i + 1));
+                if (data != nullptr) {
+                    std::memcpy(img.pixels, data, static_cast<size_t>(w) * h * sizeof(u16));
+                }
+                return static_cast<u32>(i + 1);
+            }
+            continue;
+        }
+        img.width = w;
+        img.height = h;
+        img.pixels = static_cast<u16*>(std::malloc(static_cast<size_t>(w) * h * sizeof(u16)));
+        if (img.pixels == nullptr) {
+            return 0;
+        }
+        if (data != nullptr) {
+            std::memcpy(img.pixels, data, static_cast<size_t>(w) * h * sizeof(u16));
+        }
+        InvalidatePages(static_cast<u32>(i + 1));
+        return static_cast<u32>(i + 1);
+    }
+
+    VramImage img;
+    img.width = w;
+    img.height = h;
+    img.pixels = static_cast<u16*>(std::malloc(static_cast<size_t>(w) * h * sizeof(u16)));
+    if (img.pixels == nullptr) {
+        return 0;
+    }
+    if (data != nullptr) {
+        std::memcpy(img.pixels, data, static_cast<size_t>(w) * h * sizeof(u16));
+    }
+    vramImages.push_back(img);
+    const u32 newHandle = static_cast<u32>(vramImages.size());
+    InvalidatePages(newHandle);
+    return newHandle;
+}
+
+void ps2Context::DestroyVRAMTexture(u32 handle) {
+    VramImage* img = GetVram(handle);
+    if (!img) {
+        return;
+    }
+    InvalidatePages(handle);
+    const bool isReservedPsxVram = (handle == 1 && img->width == 1024 && img->height == 512);
+    if (!isReservedPsxVram) {
+        std::free(img->pixels);
+        *img = {};
+    }
+}
+
+void ps2Context::UpdateVRAMTexture(u32 handle, int w, int h, const u16* data) {
+    VramImage* img = GetVram(handle);
+    if (!img || !data || img->width != w || img->height != h) {
+        return;
+    }
+    std::memcpy(img->pixels, data, static_cast<size_t>(w) * h * sizeof(u16));
+    InvalidatePages(handle);
+}
+
+void ps2Context::UpdateVRAMTextureRegion(u32 handle, int textureW, int textureH,
+                                         const u16* data, int x, int y,
+                                         int w, int h) {
+    VramImage* img = GetVram(handle);
+    if (!img || !data || textureW != img->width || textureH != img->height ||
+        w <= 0 || h <= 0 || x >= textureW || y >= textureH) {
+        return;
+    }
+    const int startX = std::max(0, x);
+    const int startY = std::max(0, y);
+    UpdateVRAMTextureRect(handle, startX, startY, (x + w) - startX, (y + h) - startY,
+                          textureW,
+                          data + static_cast<size_t>(startY) * textureW + startX);
+}
+
+void ps2Context::UpdateVRAMTextureRect(u32 handle, int x, int y, int w, int h,
+                                       int srcPitchTexels, const u16* data) {
+    VramImage* img = GetVram(handle);
+    if (!img || !data || w <= 0 || h <= 0 || srcPitchTexels < w) {
+        return;
+    }
+    const int minX = std::max(0, x);
+    const int minY = std::max(0, y);
+    const int maxX = std::min(img->width, x + w);
+    const int maxY = std::min(img->height, y + h);
+    if (minX >= maxX || minY >= maxY) {
+        return;
+    }
+
+    const size_t rowBytes = static_cast<size_t>(maxX - minX) * sizeof(u16);
+    for (int row = minY; row < maxY; ++row) {
+        u16* dst = img->pixels + row * img->width + minX;
+        const u16* src = data + static_cast<size_t>(row - y) * srcPitchTexels + (minX - x);
+        std::memcpy(dst, src, rowBytes);
+    }
+
+    InvalidatePagesRect(handle, minX, minY, maxX, maxY);
+}
+
+static inline u16 SampleVramSafe(const u16* pixels, int width, int height, int x, int y) {
+    if (x < 0 || x >= width || y < 0 || y >= height) {
+        return 0;
+    }
+    return pixels[y * width + x];
+}
+
+Ps2GsTexture* ps2Context::GetOrCreatePageTexture(u32 handle, u16 tpage, u16 cba) {
+    VramImage* img = GetVram(handle);
+    if (img == nullptr || img->pixels == nullptr) {
+        return nullptr;
+    }
+
+    const u16 normTpage = tpage & 0x019Fu;
+
+    for (auto& entry : pageCache) {
+        if (entry.handle == handle && entry.tpage == normTpage && entry.cba == cba) {
+            entry.lastUsedTick = ++pageCacheTick;
+            return entry.texture;
+        }
+    }
+
+    PageCacheEntry* target = nullptr;
+    for (auto& entry : pageCache) {
+        if (entry.handle == 0) {
+            target = &entry;
+            break;
+        }
+        if (target == nullptr || entry.lastUsedTick < target->lastUsedTick) {
+            target = &entry;
+        }
+    }
+    if (target == nullptr) {
+        return nullptr;
+    }
+
+    if (decodeScratch.size() < 256 * 256 * 4) {
+        decodeScratch.resize(256 * 256 * 4);
+    }
+    u8* out = decodeScratch.data();
+
+    const int tx = normTpage & 0x0Fu;
+    const int ty = (normTpage >> 4) & 1;
+    const int depth = (normTpage >> 7) & 3;
+
+    const int pageX = tx * 64;
+    const int pageY = ty * 256;
+
+    const int clutX = (cba & 0x3Fu) * 16;
+    const int clutY = (cba >> 6) & 0x1FFu;
+
+    const u16* vram = img->pixels;
+    const int vw = img->width;
+    const int vh = img->height;
+
+    if (depth == 0) {
+        u16 clut[16];
+        for (int i = 0; i < 16; ++i) {
+            clut[i] = SampleVramSafe(vram, vw, vh, clutX + i, clutY);
+        }
+        for (int y = 0; y < 256; ++y) {
+            const int wordY = pageY + y;
+            for (int x = 0; x < 256; ++x) {
+                const int wordX = pageX + (x >> 2);
+                const u16 word = SampleVramSafe(vram, vw, vh, wordX, wordY);
+                const int nibble = (word >> ((x & 3) << 2)) & 0x0F;
+                const u16 color = clut[nibble];
+
+                const bool transparent = (nibble == 0) || (color == 0) || ((color & 0x7FFFu) == 0x7C1Fu);
+                const u8 r5 = static_cast<u8>(color & 0x1F);
+                const u8 g5 = static_cast<u8>((color >> 5) & 0x1F);
+                const u8 b5 = static_cast<u8>((color >> 10) & 0x1F);
+
+                const int idx = (y * 256 + x) * 4;
+                out[idx + 0] = static_cast<u8>((r5 << 3) | (r5 >> 2));
+                out[idx + 1] = static_cast<u8>((g5 << 3) | (g5 >> 2));
+                out[idx + 2] = static_cast<u8>((b5 << 3) | (b5 >> 2));
+                out[idx + 3] = transparent ? 0 : 255;
+            }
+        }
+    }
+    else if (depth == 1) {
+        u16 clut[256];
+        for (int i = 0; i < 256; ++i) {
+            clut[i] = SampleVramSafe(vram, vw, vh, clutX + i, clutY);
+        }
+        for (int y = 0; y < 256; ++y) {
+            const int wordY = pageY + y;
+            for (int x = 0; x < 256; ++x) {
+                const int wordX = pageX + (x >> 1);
+                const u16 word = SampleVramSafe(vram, vw, vh, wordX, wordY);
+                const int byteIdx = (x & 1) ? ((word >> 8) & 0xFF) : (word & 0xFF);
+                const u16 color = clut[byteIdx];
+
+                const bool transparent = (byteIdx == 0) || (color == 0) || ((color & 0x7FFFu) == 0x7C1Fu);
+                const u8 r5 = static_cast<u8>(color & 0x1F);
+                const u8 g5 = static_cast<u8>((color >> 5) & 0x1F);
+                const u8 b5 = static_cast<u8>((color >> 10) & 0x1F);
+
+                const int idx = (y * 256 + x) * 4;
+                out[idx + 0] = static_cast<u8>((r5 << 3) | (r5 >> 2));
+                out[idx + 1] = static_cast<u8>((g5 << 3) | (g5 >> 2));
+                out[idx + 2] = static_cast<u8>((b5 << 3) | (b5 >> 2));
+                out[idx + 3] = transparent ? 0 : 255;
+            }
+        }
+    }
+    else {
+        for (int y = 0; y < 256; ++y) {
+            const int wordY = pageY + y;
+            for (int x = 0; x < 256; ++x) {
+                const int wordX = pageX + x;
+                const u16 color = SampleVramSafe(vram, vw, vh, wordX, wordY);
+
+                const bool transparent = (color == 0) || ((color & 0x7FFFu) == 0x7C1Fu);
+                const u8 r5 = static_cast<u8>(color & 0x1F);
+                const u8 g5 = static_cast<u8>((color >> 5) & 0x1F);
+                const u8 b5 = static_cast<u8>((color >> 10) & 0x1F);
+
+                const int idx = (y * 256 + x) * 4;
+                out[idx + 0] = static_cast<u8>((r5 << 3) | (r5 >> 2));
+                out[idx + 1] = static_cast<u8>((g5 << 3) | (g5 >> 2));
+                out[idx + 2] = static_cast<u8>((b5 << 3) | (b5 >> 2));
+                out[idx + 3] = transparent ? 0 : 255;
+            }
+        }
+    }
+
+    if (!ps2gs_texture_upload(target->texture, 256, 256, PS2GS_FORMAT_RGBA16, out)) {
+        return nullptr;
+    }
+    ps2gs_texture_set_filter(target->texture, 0);
+
+    target->handle = handle;
+    target->tpage = normTpage;
+    target->cba = cba;
+    target->lastUsedTick = ++pageCacheTick;
+    return target->texture;
+}
+
 void ps2Context::DrawPrimBuffer(pddiPrimBuffer* buffer, u32 indexOffset, u32 indexCount) {
     if (gs == nullptr || buffer == nullptr) {
         return;
@@ -633,13 +954,18 @@ void ps2Context::DrawPrimBuffer(pddiPrimBuffer* buffer, u32 indexOffset, u32 ind
     }
 
     const bool textured = (ps2buffer->VertexFormat() & PDDI_V_UV) != 0;
+    const bool hasTexInfo = (ps2buffer->VertexFormat() & PDDI_V_TEXINFO) != 0;
 
     pddiColour colour;
-    Ps2GsTexture* tex = ResolveTexture(nullptr, &colour);
-    if (textured && tex != nullptr) {
+    Ps2GsTexture* explicitTex = ResolveTexture(nullptr, &colour);
+    if (textured && explicitTex != nullptr) {
         ps2gs_set_clamp(gs, 1);
-        ps2gs_bind_texture(gs, tex);
+        ps2gs_bind_texture(gs, explicitTex);
     }
+
+    Ps2GsTexture* currentBoundTex = explicitTex;
+    u16 lastTpage = 0xFFFF;
+    u16 lastCba = 0xFFFF;
 
     const size_t start = indices.empty() ? 0 : (size_t)indexOffset;
     const size_t count = indices.empty()
@@ -665,11 +991,45 @@ void ps2Context::DrawPrimBuffer(pddiPrimBuffer* buffer, u32 indexOffset, u32 ind
         const float xy1[2] = {v[1]->x, v[1]->y};
         const float xy2[2] = {v[2]->x, v[2]->y};
 
-        if (textured && tex != nullptr) {
-            const float uv0[2] = {v[0]->u, v[0]->v};
-            const float uv1[2] = {v[1]->u, v[1]->v};
-            const float uv2[2] = {v[2]->u, v[2]->v};
-            ps2gs_draw_triangle_textured(gs, tex, xy0, uv0, c0, xy1, uv1, c1, xy2, uv2, c2);
+        Ps2GsTexture* triTex = explicitTex;
+        bool triTextured = textured && (triTex != nullptr);
+        float uvScale = 1.0f;
+
+        if (explicitTex == nullptr && textured && hasTexInfo && vramHandle != 0) {
+            s32 tpage = static_cast<s32>(v[0]->texInfo[0]);
+            s32 cba = static_cast<s32>(v[0]->texInfo[1]);
+            if (texInfoOverrideEnabled) {
+                tpage = static_cast<s32>((texInfoOverrideWord >> 16) & 0xFFFFu);
+                cba = static_cast<s32>(texInfoOverrideWord & 0xFFFFu);
+            }
+
+            if (tpage >= 0) {
+                const u16 uTpage = static_cast<u16>(tpage);
+                const u16 uCba = static_cast<u16>(cba);
+                if (currentBoundTex == nullptr || uTpage != lastTpage || uCba != lastCba) {
+                    triTex = GetOrCreatePageTexture(vramHandle, uTpage, uCba);
+                    if (triTex != nullptr) {
+                        ps2gs_set_clamp(gs, 1);
+                        ps2gs_bind_texture(gs, triTex);
+                        currentBoundTex = triTex;
+                        lastTpage = uTpage;
+                        lastCba = uCba;
+                    }
+                } else {
+                    triTex = currentBoundTex;
+                }
+                if (triTex != nullptr) {
+                    triTextured = true;
+                    uvScale = 1.0f / 256.0f;
+                }
+            }
+        }
+
+        if (triTextured && triTex != nullptr) {
+            const float uv0[2] = {v[0]->u * uvScale, v[0]->v * uvScale};
+            const float uv1[2] = {v[1]->u * uvScale, v[1]->v * uvScale};
+            const float uv2[2] = {v[2]->u * uvScale, v[2]->v * uvScale};
+            ps2gs_draw_triangle_textured(gs, triTex, xy0, uv0, c0, xy1, uv1, c1, xy2, uv2, c2);
         }
         else {
             ps2gs_draw_triangle_gouraud(gs, xy0, c0, xy1, c1, xy2, c2);

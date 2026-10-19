@@ -227,8 +227,19 @@ tTexture* tTexture::LoadFromImagePath(const char* path, s32* outWidth, s32* outH
 
     stbi_image_free(rgbaBytes);
 
+#if defined(RC_PLATFORM_PS2)
+    // On PS2, texture VRAM is capped at ~2.12 MiB after 16-bit front/back/Z buffers.
+    // Fullscreen 640x360 frontend sheets (background, jackie, logo) take 960 KiB each
+    // in 32-bit (2.88 MiB total), exceeding VRAM and causing destructive per-frame
+    // eviction/thrashing. In 16-bit RGBA5551 (GS_PSM_CT16), each sheet takes ~480 KiB
+    // (1.44 MiB total), allowing all 3 sheets to coexist in VRAM simultaneously.
+    const int bpp = (targetWidth >= 512 || targetHeight >= 360) ? 16 : 32;
+#else
+    const int bpp = 32;
+#endif
+
     tTexture* tex = new tTexture();
-    if (!tex->Create(targetWidth, targetHeight, 32, 8, packedPixels)) {
+    if (!tex->Create(targetWidth, targetHeight, bpp, 8, packedPixels)) {
 #if (defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)) && !defined(NDEBUG)
         LOG("[ConsoleTexture] create failed path=%s source=%dx%d target=%dx%d",
             resolvedPath.c_str(), width, height, targetWidth, targetHeight);

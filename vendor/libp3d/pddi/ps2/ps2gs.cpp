@@ -235,6 +235,7 @@ Ps2Gs* ps2gs_init(int width, int height) {
     Trace("gs: texmanager ok\n");
     gsKit_mode_switch(global, GS_ONESHOT);
     gsKit_set_test(global, GS_ZTEST_OFF);
+    gsKit_set_test(global, GS_ATEST_ON);
     gsKit_set_clamp(global, GS_CMODE_CLAMP);
     Trace("gs: mode/state ok\n");
 
@@ -301,6 +302,7 @@ void ps2gs_clear(Ps2Gs* gs, unsigned char r, unsigned char g, unsigned char b) {
     // that Z would reject every primitive drawn at Z>0, so the test is left off
     // until the 3D milestone brings a real Z buffer.
     gsKit_set_test(gs->global, GS_ZTEST_OFF);
+    gsKit_set_test(gs->global, GS_ATEST_ON);
 }
 
 void ps2gs_set_ztest(Ps2Gs* gs, int enable) {
@@ -308,6 +310,13 @@ void ps2gs_set_ztest(Ps2Gs* gs, int enable) {
         return;
     }
     gsKit_set_test(gs->global, enable ? GS_ZTEST_ON : GS_ZTEST_OFF);
+}
+
+void ps2gs_set_atest(Ps2Gs* gs, int enable) {
+    if (gs == nullptr || gs->global == nullptr) {
+        return;
+    }
+    gsKit_set_test(gs->global, enable ? GS_ATEST_ON : GS_ATEST_OFF);
 }
 
 void ps2gs_set_blend(Ps2Gs* gs, int blend) {
@@ -495,6 +504,11 @@ void ps2gs_bind_texture(Ps2Gs* gs, Ps2GsTexture* texture) {
     }
     // The manager uploads the texture the first time it is bound (and again
     // after invalidate), allocating its VRAM block on the way.
+    // If the texture is not resident in VRAM yet, flush the queued draws so
+    // that prior primitives do not sample from overwritten VRAM.
+    if (texture->tex.Vram == 0) {
+        gsKit_queue_exec(gs->global);
+    }
     gsKit_TexManager_bind(gs->global, &texture->tex);
     gsKit_set_texfilter(gs->global, (u8)texture->tex.Filter);
 

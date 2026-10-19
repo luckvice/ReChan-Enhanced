@@ -149,5 +149,20 @@ readers that have no console counterpart yet, so dialogue and music stay silent.
 The white squares over the splash are unchanged: they are PSX VRAM particles and
 their texture lookup is still missing.
 
-Next pieces of the port: the PSX VRAM texture lookups, the retained-mode mesh
-path over the world geometry, and the streaming audio (music, ambience, dialogue).
+Step 8, the PSX VRAM texture lookups and debris particles, is done:
+`vendor/libp3d/pddi/ps2` now implements `CreateVRAMTexture`, `DestroyVRAMTexture`,
+`UpdateVRAMTexture`, `UpdateVRAMTextureRegion`, `UpdateVRAMTextureRect`,
+`SetVRAMHandle` and `SetTexInfoOverride`. Raw PSX VRAM (1024x512, 16 bits = 1 MiB)
+is stored on the EE. Textures for (tpage, cba) pairs are decoded on demand as
+256x256 pages into `GS_PSM_CT16` (128 KiB per page in GS VRAM) and kept in a
+16-entry LRU page cache with dirty-rect invalidation. Alpha test (`GS_ATEST_ON`)
+is active on the GS via `gsKit_set_test` so black (0x0000), magenta (0x7C1F) and
+index 0 texels are discarded immediately. In `DrawPrimBuffer`, triangles with
+`PDDI_V_TEXINFO` resolve their page, bind it and normalize UVs (`uv / 256.0f`).
+For frontend spark debris, the PS2 now uses the shared 16x16 anti-aliased dot
+texture (`LoadTitleDebrisDotTexture`) instead of falling back to flat colored
+rects. The solid white square boxes over the title screen logo are completely
+gone, replaced by textured particles rendered at 60 fps.
+
+Next pieces of the port: the retained-mode mesh path over the world geometry,
+render targets, and the streaming audio (music, ambience, dialogue).

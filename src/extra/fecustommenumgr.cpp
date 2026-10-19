@@ -1110,7 +1110,7 @@ void feCustomMenuMgr::Init(CustomText* textSystem) {
     LoadMenuOrnamentTexture();
     LoadSplashTextures();
     LoadSliderTextures();
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
     LoadTitleDebrisDotTexture();
 #endif
 
@@ -1145,12 +1145,14 @@ void feCustomMenuMgr::Shutdown() {
         m_titleScreenEditionTexture->Release();
         m_titleScreenEditionTexture = nullptr;
     }
+    m_titleJackieBounds = TitleLayerBounds();
+    m_titleLogoBounds = TitleLayerBounds();
+#endif
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
     if (m_titleDebrisDotTexture) {
         m_titleDebrisDotTexture->Release();
         m_titleDebrisDotTexture = nullptr;
     }
-    m_titleJackieBounds = TitleLayerBounds();
-    m_titleLogoBounds = TitleLayerBounds();
 #endif
     if (m_gameOverTexture) {
         m_gameOverTexture->Release();
@@ -1237,6 +1239,9 @@ void feCustomMenuMgr::ReleaseTitleScreenEffects() {
 }
 
 bool feCustomMenuMgr::EnsureTitleScreenEffects(f32 drawW, f32 drawH) {
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
+    return false;
+#else
     if (m_titleScreenEffectsUnavailable || !p3d::device || !p3d::context) {
         return false;
     }
@@ -1309,6 +1314,7 @@ bool feCustomMenuMgr::EnsureTitleScreenEffects(f32 drawW, f32 drawH) {
     // to one throttle interval.
     m_titleEffectsLastUpdateSec = -1.0f;
     return true;
+#endif
 }
 
 void feCustomMenuMgr::UpdateTitleDebrisParticles(f32 dt, f32 emitX, f32 emitY, f32 spanW) {
@@ -1375,7 +1381,7 @@ void feCustomMenuMgr::UpdateTitleDebrisParticles(f32 dt, f32 emitX, f32 emitY, f
     }
 }
 
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 void feCustomMenuMgr::LoadTitleDebrisDotTexture() {
     if (m_titleDebrisDotTexture) {
         return;
@@ -1422,7 +1428,7 @@ void feCustomMenuMgr::DrawTitleDebrisParticles() const {
         const u8 a = (u8)(255.0f * t01);
         const f32 dotSize = p.size * (0.5f + 0.5f * t01);
 
-#if defined(RC_PLATFORM_PSP)
+#if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
         // The GU cannot execute the desktop "dot" fragment shader. Draw each
         // spark as a faint outer disc plus a bright core. With the tinted dot
         // texture both layers are single quads that join the caller's
@@ -4762,11 +4768,11 @@ bool feCustomMenuMgr::DrawTitleScreen() {
     if (IsActive() || m_titleContentHidden)
         return true;
 
-#if !defined(RC_PLATFORM_PSP)
-    // PSP: the GU backend has no render targets or fragment shaders
-    // (CreateRenderTarget returns null), so the glow/god-ray/tilt passes are
-    // compiled out instead of allocating five shader objects on the first
-    // title frame only to discard them.
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
+    // PSP/PS2: fixed-function hardware with no render targets or fragment shaders
+    // (CreateRenderTarget returns null or unusable targets), so the glow/god-ray/tilt
+    // passes are compiled out instead of allocating shader objects or drawing
+    // flat unshaded quads that blow out the scene colors.
     if (EnsureTitleScreenEffects(drawW, drawH)) {
         const bool firstRun = (m_titleEffectsLastUpdateSec < 0.0f);
         const bool refreshEffects = firstRun
@@ -4860,6 +4866,7 @@ bool feCustomMenuMgr::DrawTitleScreen() {
                          0.0f, 0.0f, 1.0f, 1.0f, 255, 255, 255, titleFadeAlpha);
 #endif
 
+#if !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
     if (m_titleScreenLogoTiltShader) {
         m_titleScreenLogoTiltShader->SetTexture(0, m_titleScreenLogoTexture->GetTexture());
         m_titleScreenLogoTiltShader->SetVector("uTiltRect",
@@ -4870,7 +4877,9 @@ bool feCustomMenuMgr::DrawTitleScreen() {
         ScreenDraw::DrawShaderQuad(m_titleScreenLogoTiltShader, drawX, drawY, drawW, drawH,
                                    0.0f, 0.0f, 1.0f, 1.0f, PDDI_BLEND_ALPHA);
     }
-    else {
+    else
+#endif
+    {
         // Fallback without the 3D tilt shader: plain bob/scale, no tilt.
         const f32 logoW = logoHalfW * 2.0f;
         const f32 logoH = logoHalfH * 2.0f;

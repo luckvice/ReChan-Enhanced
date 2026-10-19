@@ -226,6 +226,7 @@ private:
 class ps2Context : public pddiRenderContext {
 public:
     explicit ps2Context(ps2Display* display);
+    ~ps2Context() override;
 
     void BeginFrame() override {}
     void EndFrame() override {}
@@ -282,15 +283,17 @@ public:
 
     void SetTexture(pddiTexture* tex) override { boundTexture = tex; }
 
-    // The PSX VRAM-in-shader lookup is a GL technique; on the GS the PSX pages
-    // are decoded into real textures by the following tasks. Until then these
-    // calls are accepted and ignored, so the game's PSX path keeps running.
-    void SetVRAMHandle(u32 handle) override { (void)handle; }
-    void SetTexInfoOverride(bool enabled, u32 texInfoWord) override { (void)enabled; (void)texInfoWord; }
-    u32 CreateVRAMTexture(int, int, const u16*) override { return 0; }
-    void DestroyVRAMTexture(u32) override {}
-    void UpdateVRAMTexture(u32, int, int, const u16*) override {}
-    void UpdateVRAMTextureRect(u32, int, int, int, int, int, const u16*) override {}
+    // PSX VRAM texture management and decoded page caching.
+    void SetVRAMHandle(u32 handle) override;
+    void SetTexInfoOverride(bool enabled, u32 texInfoWord) override;
+    u32 CreateVRAMTexture(int w, int h, const u16* data) override;
+    void DestroyVRAMTexture(u32 handle) override;
+    void UpdateVRAMTexture(u32 handle, int w, int h, const u16* data) override;
+    void UpdateVRAMTextureRegion(u32 handle, int textureW, int textureH,
+                                 const u16* data, int x, int y,
+                                 int w, int h) override;
+    void UpdateVRAMTextureRect(u32 handle, int x, int y, int w, int h,
+                               int srcPitchTexels, const u16* data) override;
 
     void SetRealTextureMode(bool enabled) override { realTextureMode = enabled; }
     bool IsRealTextureModeEnabled() const override { return realTextureMode; }
@@ -310,6 +313,27 @@ public:
     void SetShadowDebugMode(int) override {}
 
 private:
+    struct VramImage {
+        int width = 0;
+        int height = 0;
+        u16* pixels = nullptr;
+    };
+
+    struct PageCacheEntry {
+        u32 handle = 0;
+        u16 tpage = 0;
+        u16 cba = 0;
+        u32 lastUsedTick = 0;
+        Ps2GsTexture* texture = nullptr;
+    };
+
+    static constexpr size_t kPageCacheCapacity = 16;
+
+    VramImage* GetVram(u32 handle);
+    Ps2GsTexture* GetOrCreatePageTexture(u32 handle, u16 tpage, u16 cba);
+    void InvalidatePages(u32 handle);
+    void InvalidatePagesRect(u32 handle, int minX, int minY, int maxX, int maxY);
+
     Ps2GsTexture* ResolveTexture(const pddiBaseShader* shader, pddiColour* colour);
 
     Ps2Gs* gs = nullptr;
@@ -323,6 +347,15 @@ private:
     bool multisample = false;
     bool realTextureMode = false;
     bool polygonOffset = false;
+
+    std::vector<VramImage> vramImages;
+    std::vector<PageCacheEntry> pageCache;
+    u32 pageCacheTick = 0;
+    std::vector<u8> decodeScratch;
+
+    u32 vramHandle = 0;
+    bool texInfoOverrideEnabled = false;
+    u32 texInfoOverrideWord = 0;
 
     Mat4 world, view, projection;
     float cameraAspect = 1.0f;

@@ -55,6 +55,7 @@ void ps2gs_frame_end(Ps2Gs* gs);
 // Frame state.
 void ps2gs_clear(Ps2Gs* gs, unsigned char r, unsigned char g, unsigned char b);
 void ps2gs_set_ztest(Ps2Gs* gs, int enable);
+void ps2gs_set_atest(Ps2Gs* gs, int enable);
 void ps2gs_set_blend(Ps2Gs* gs, int blend);
 void ps2gs_set_scissor(Ps2Gs* gs, int x, int y, int w, int h);
 
