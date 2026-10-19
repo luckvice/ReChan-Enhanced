@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Analysis of a BMP capture of the PCSX2 window: colour histogram, check for
 the expected test-pattern colours, and an optional crop of the game area to a
-640x448 PNG (the PS2's native resolution).
+640x480 PNG (the PS2's 480p output resolution).
 
 Usage:
     python3 ps2/tools/verify-render.py <capture.bmp> [--preset pddi|basic]
@@ -19,9 +19,11 @@ import sys
 import zlib
 
 # The scenes the boot ELF can draw. `colours` are the values handed to the GS,
-# `expected` the share of the 640x448 frame each one covers plus the absolute
+# `expected` the share of the 640x480 frame each one covers plus the absolute
 # tolerance allowed (the screenshot is scaled by the window and shifted by
-# colour management, so areas drift a little).
+# colour management, so areas drift a little). The shares are the geometry over
+# a 640x480 progressive frame: the pattern draws at fixed pixel sizes, so every
+# block covers 448/480 of the share it had in the older 640x448 interlaced mode.
 PRESETS = {
     # ps2/main.cpp: RGBA32 texture, CLUT texture, gouraud quad, triangle batch.
     "pddi": {
@@ -39,17 +41,17 @@ PRESETS = {
             "batch lime": (0x38, 0xf0, 0x00),
         },
         "expected": {
-            "background": (0.5446, 0.030),
-            "tex A yellow": (0.0357, 0.008),
-            "tex A red": (0.0357, 0.008),
-            "tex A green": (0.0357, 0.008),
-            "tex A magenta": (0.0357, 0.008),
-            "tex B cyan": (0.0335, 0.008),
-            "tex B orange": (0.0335, 0.008),
-            "tex B purple": (0.0335, 0.008),
-            "tex B white": (0.0335, 0.008),
-            "gouraud teal": (0.0714, 0.012),
-            "batch lime": (0.1071, 0.015),
+            "background": (0.5749, 0.030),
+            "tex A yellow": (0.0333, 0.008),
+            "tex A red": (0.0333, 0.008),
+            "tex A green": (0.0333, 0.008),
+            "tex A magenta": (0.0333, 0.008),
+            "tex B cyan": (0.0313, 0.008),
+            "tex B orange": (0.0313, 0.008),
+            "tex B purple": (0.0313, 0.008),
+            "tex B white": (0.0313, 0.008),
+            "gouraud teal": (0.0667, 0.012),
+            "batch lime": (0.1000, 0.015),
         },
     },
     # The gsKit-only pattern step 1 drew, kept for the record.
@@ -242,7 +244,7 @@ def main():
     bw, bh = maxx - minx + 1, maxy - miny + 1
     print(f"game area: {bw}x{bh} at +{minx}+{miny}")
 
-    out_w, out_h = 640, 448
+    out_w, out_h = 640, 480
     rows = []
     for oy in range(out_h):
         sy = miny + (oy * bh) // out_h

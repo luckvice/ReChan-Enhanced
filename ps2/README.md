@@ -1,9 +1,9 @@
 # Re:Chan HD Edition (PlayStation 2)
 
 This is the native PlayStation 2 target: Emotion Engine + Graphics Synthesizer,
-with no emulation of the PS1 original. The game runs on the PS2's native video
-mode — 640x448 NTSC interlaced (480i), matching the NTSC-U disc (SLUS-00684) —
-and is exercised in PCSX2 during development.
+with no emulation of the PS1 original. The game outputs 640x480 progressive
+(480p) at 60 Hz — the NTSC-U disc (SLUS-00684) ran 640x448 interlaced — and is
+exercised in PCSX2 during development.
 
 The renderer for this target goes through gsKit (the GS abstraction shipped
 with the ps2dev toolchain), which suits a palette-heavy game: GS CLUT textures,
@@ -70,7 +70,7 @@ PCSX2 2.8.2 with a PS2 BIOS dump:
   seconds and captures the window; `ps2/tools/verify-render.py` prints the colour
   histogram, checks the expected pattern colours (`--preset pddi`), measures how
   much of the game area is not black (`--content`) and can crop the game area to
-  a 640x448 PNG.
+  a 640x480 PNG.
 
 ```bash
 bash ps2/tools/pcsx2-shot.sh "$PWD/dist/ps2/rechan.elf" /tmp/shot
@@ -100,20 +100,30 @@ runs the `Game::Step()` loop at a self-reported 60 Hz, reading its data through
 
 Step 4, the frontend, now draws: the splash/title art loads (all 13 sheets of
 `res/pc/textures`, including the 1920x1080 ones, reduced to 640x360) and the
-GS presents the logo, the loading bar and the menu ornaments at 640x448, with
-the emulator at 100% speed. The engine still runs with **no** disc-derived
-assets, so the world geometry, the PSX VRAM textures, the XC fonts and the audio
-are absent from this build. The white squares over the splash are text: the
+GS presents the logo, the loading bar and the menu ornaments, with the emulator
+at 100% speed. The engine still runs with **no** disc-derived assets, so the
+world geometry, the PSX VRAM textures, the XC fonts and the audio are absent
+from this build. The white squares over the splash are text: the
 `StbTextBackend` atlas is 2048x2048, above the 1024x1024 the GS can address, so
 the backend rejects it (see `tex: rejected` in the GS trace) and each glyph is
 drawn untextured — the next task gives that atlas a PS2 size, like the PSP path
-already does. The frontend also exposed the VRAM budget: gsKit's two
-framebuffers and the z-buffer take 3.28 MiB of the 4 MiB, leaving ~0.7 MiB for
-textures, so sheets are uploaded on demand and the texture manager evicts the
-previous one (the GS trace shows one bind per draw). A 640x360 sheet (900 KiB)
-does not fit and makes gsKit spin looking for room, which is why the cap is
-512x288; reclaiming framebuffer VRAM (a CT16 framebuffer is what most 480i
-titles used) is a follow-up. The 3D scene stays empty until the user's own disc
-image is extracted into the host directory. Next pieces of the port: the text
+already does. The 3D scene stays empty until the user's own disc image is
+extracted into the host directory.
+
+Step 5, 480p, is done: `ps2gs_init` brings the GS up in gsKit's DTV 480p mode
+(640x480, non-interlaced, 60 Hz) instead of the 480i mode of the disc. A 32-bit
+framebuffer at this size would take 3.7 MiB of the 4 MiB of VRAM and leave
+nothing for textures, so the colour framebuffers and the z-buffer run in 16 bits,
+as most 480i/480p titles did; that drops their footprint to 1.88 MiB and leaves
+~2.2 MiB for textures (the GS trace prints the first texture address). With that
+budget the 16:9 art is back at the display width (640x360, 900 KiB) and the
+sprite path keeps a 512x512 ceiling for everything else. A fullscreen sheet now
+fits on its own, but the splash shows three of them per frame (background,
+silhouette, logo), which still exceeds the pool: the texture manager re-uploads
+about one sheet per frame (the GS trace shows ~2.9k binds over 1k frames). The
+GS absorbs that at 60 fps in the emulator; pooling the splash sheets or batching
+the frontend into one atlas is the follow-up.
+
+Next pieces of the port: the text
 atlas, the VRAM budget, the PSX VRAM texture lookups, the retained-mode mesh
 path over the world geometry, and the audio.

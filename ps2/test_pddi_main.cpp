@@ -2,7 +2,8 @@
 //
 // Step 2 of the port: the app boots through the pddi device interface
 // (vendor/libp3d/pddi/ps2), the same way the desktop and PSP builds do, and
-// renders a verification pattern at the console's native 640x448 NTSC mode.
+// renders a verification pattern at the console's native 640x480 progressive
+// (480p) mode.
 //
 // The pattern exercises the paths the game will need:
 //   - an RGBA32 texture (DrawQuad with a shader-bound texture),
@@ -21,8 +22,10 @@
 #include <stdio.h>
 #include <string.h>
 
+// Mirrors PS2_NATIVE_WIDTH/HEIGHT in the backend (480p); the pattern is a
+// fixed-pixel layout, so the verifier's proportions are measured against it.
 static const int kWidth = 640;
-static const int kHeight = 448;
+static const int kHeight = 480;
 
 static FILE* g_log = 0;
 

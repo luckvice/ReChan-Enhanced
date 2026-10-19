@@ -202,16 +202,22 @@ Ps2Gs* ps2gs_init(int width, int height) {
     }
     Trace("gs: init_global ok\n");
 
-    // Native mode: the console's own 640x448 NTSC interlaced signal, the same
-    // format as the original disc. GS_FIELD (not GS_FRAME) keeps gsKit from
-    // applying a vertical magnification that collapses the display.
-    global->Mode = GS_MODE_NTSC;
-    global->Interlace = GS_INTERLACED;
-    global->Field = GS_FIELD;
+    // 640x480 progressive (480p) at 60 Hz, the port's target mode. GS_FRAME is
+    // the single-field timebase that pairs with GS_NONINTERLACED (the original
+    // disc ran 640x448 NTSC interlaced; GS_FIELD was needed there to keep gsKit
+    // from applying a vertical magnification).
+    global->Mode = GS_MODE_DTV_480P;
+    global->Interlace = GS_NONINTERLACED;
+    global->Field = GS_FRAME;
     global->Width = width;
     global->Height = height;
     global->Aspect = GS_ASPECT_4_3;
     global->PrimAlphaEnable = GS_SETTING_ON;
+    // 16-bit colour framebuffers and z-buffer. At 480p the 32-bit buffers take
+    // 3.7 MiB of the 4 MiB of VRAM and leave nothing for textures; 16 bits is
+    // also what most 480i/480p titles of the console used.
+    global->PSM = GS_PSM_CT16;
+    global->PSMZ = GS_PSMZ_16;
 
     dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC, D_CTRL_STD_OFF, D_CTRL_RCYC_8,
                 1 << DMA_CHANNEL_GIF);
@@ -219,6 +225,11 @@ Ps2Gs* ps2gs_init(int width, int height) {
     Trace("gs: dmaKit ok\n");
 
     gsKit_init_screen(global);
+    // gsKit may pull Width/Height from its mode table, so record what the screen
+    // really is: the texture budget and the UI layout both depend on it.
+    Trace("gs: screen %dx%d mode=%d interlace=%d field=%d psm=%d psmz=%d\n",
+          global->Width, global->Height, global->Mode, global->Interlace,
+          global->Field, global->PSM, global->PSMZ);
     Trace("gs: init_screen ok\n");
     gsKit_TexManager_init(global);
     Trace("gs: texmanager ok\n");

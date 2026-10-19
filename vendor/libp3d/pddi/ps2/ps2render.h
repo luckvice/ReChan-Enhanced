@@ -21,10 +21,11 @@
 #include <string>
 #include <vector>
 
-// Native video mode: 640x448 NTSC interlaced (480i) — the console's own
-// resolution, and the format of the NTSC-U disc.
+// Native video mode: 640x480 progressive (480p) at 60 Hz, the port's target.
+// The original NTSC-U disc ran 640x448 interlaced; the backend keeps the same
+// 4:3 aspect and the full width while gaining the progressive scan.
 constexpr int PS2_NATIVE_WIDTH = 640;
-constexpr int PS2_NATIVE_HEIGHT = 448;
+constexpr int PS2_NATIVE_HEIGHT = 480;
 
 // One retained-mode vertex, unpacked from the pddi vertex format. The layout the
 // other backends consume is position (3 floats), colour (3 floats), uv

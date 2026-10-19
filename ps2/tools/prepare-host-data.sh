@@ -7,14 +7,12 @@
 # and the engine has already claimed most of it by the time the frontend loads,
 # so the copy that reaches the console is downscaled once, here:
 #
-#   * fullscreen 16:9 art (>= 960x540)  -> fits 512x288  (16:9, 576 KiB of VRAM)
+#   * fullscreen 16:9 art (>= 960x540)  -> fits 640x360  (16:9, 900 KiB of VRAM)
 #   * everything else                   -> fits 512x512  (CT32, 1 MiB of VRAM)
 #
-# The 512x288 ceiling comes from gsKit: its two framebuffers and the z-buffer
-# already claim 3.28 MiB of the 4 MiB of VRAM, and a 640x360 sheet (900 KiB) does
-# not fit in what is left — gsKit hangs trying to allocate it. The 512x512 cap
-# only covers art that fits the GS addressable limit; those sheets are still too
-# large to be uploaded next to the framebuffers today (see the README).
+# 640x360 is the display width at 480p. It only fits because the GS framebuffers
+# and the z-buffer run in 16 bits: their VRAM footprint drops to 1.88 MiB, which
+# leaves ~2.2 MiB for textures (the GS trace prints the first texture address).
 #
 # The runtime keeps the same caps in tTexture::LoadFromImagePath as a safety
 # net, so pointing host: at the unscaled res/pc still works on the desktop.
@@ -69,7 +67,7 @@ resize_png() {
     fi
 
     if [ "$width" -ge 960 ] && [ "$height" -ge 540 ] && [ $((width * 2)) -ge $((height * 3)) ]; then
-        box_w=512; box_h=288
+        box_w=640; box_h=360
     else
         box_w=512; box_h=512
     fi

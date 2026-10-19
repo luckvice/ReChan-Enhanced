@@ -128,9 +128,9 @@ static tTexture* LoadPspNativeTexture(const char* path, s32* outWidth, s32* outH
 // dimensions until the upload would briefly require an 8 MiB RGBA buffer for the
 // decoder plus the packed copy, and neither console has a use for that source
 // resolution: the PSP framebuffer is 480x272 (GE textures up to 512x512) and the
-// PS2 presents 640x448 with only ~0.7 MiB of VRAM left for textures once gsKit's
-// framebuffers exist, so fullscreen 16:9 art is capped at 512x288 and everything
-// else at 512x512.
+// PS2 presents 640x480 progressive with 16-bit framebuffers, leaving ~2.2 MiB
+// of VRAM for textures, so fullscreen 16:9 art is capped at 640x360 and
+// everything else at 512x512.
 #if defined(RC_PLATFORM_PSP) || defined(RC_PLATFORM_PS2)
 namespace {
 
@@ -144,22 +144,26 @@ static void GetConsoleTextureDimensions(int sourceWidth, int sourceHeight,
     }
 
 #if defined(RC_PLATFORM_PS2)
-    // gsKit's two framebuffers and the z-buffer already take 3.28 MiB of the
-    // 4 MiB of VRAM, so only ~0.7 MiB is left for textures: fullscreen 16:9 art
-    // is capped at 512x288 (576 KiB) and everything else at 512x512.
-    const int fullscreenWidth = 512;
-    const int fullscreenHeight = 288;
-#else
-    const int fullscreenWidth = 480;
-    const int fullscreenHeight = 272;
-#endif
-
-    if (sourceWidth >= 960 && sourceHeight >= 540
-        && sourceWidth >= sourceHeight * 3 / 2) {
-        targetWidth = fullscreenWidth;
-        targetHeight = fullscreenHeight;
+    // At 480p the 16-bit framebuffers and z-buffer leave ~2.2 MiB for textures
+    // (the GS trace shows the texture area starting at 1.88 MiB). 16:9 art is
+    // therefore capped at the display width, 640x360 (900 KiB).
+    if (sourceWidth * 2 >= sourceHeight * 3) {
+        const float scale = std::min(640.0f / static_cast<float>(sourceWidth),
+                                     360.0f / static_cast<float>(sourceHeight));
+        if (scale < 1.0f) {
+            targetWidth = std::max(1, static_cast<int>(sourceWidth * scale + 0.5f));
+            targetHeight = std::max(1, static_cast<int>(sourceHeight * scale + 0.5f));
+        }
         return;
     }
+#else
+    if (sourceWidth >= 960 && sourceHeight >= 540
+        && sourceWidth >= sourceHeight * 3 / 2) {
+        targetWidth = 480;
+        targetHeight = 272;
+        return;
+    }
+#endif
 
     const float scale = std::min(512.0f / static_cast<float>(sourceWidth),
                                  512.0f / static_cast<float>(sourceHeight));
