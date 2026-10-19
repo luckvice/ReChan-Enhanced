@@ -19,106 +19,103 @@
     width: 480px;
     height: 272px;
     object-fit: cover;
-    filter: brightness(0.95) contrast(1.18) saturate(1.25);
+    object-position: 70% center;
+    filter: brightness(0.85) contrast(1.15) saturate(1.2);
   }
+  /* Dark vignette on the left to keep PSP XMB game list 100% clean and readable */
   .vignette {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 75% 70%, rgba(255,140,0,0.25) 0%, transparent 55%),
-                radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 30%, rgba(5,10,25,0.75) 90%),
-                linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.05) 75%, rgba(0,0,0,0.6) 100%),
-                linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 40%),
-                linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 30%);
+    background: radial-gradient(circle at 80% 55%, rgba(255, 120, 0, 0.35) 0%, transparent 55%),
+                linear-gradient(to right, rgba(2, 6, 18, 0.98) 0%, rgba(2, 6, 18, 0.88) 120px, rgba(2, 6, 18, 0.45) 175px, transparent 235px),
+                linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 35%),
+                linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 25%);
+    z-index: 1;
   }
+  /* Jackie Chan positioned on the right */
   .jackie {
     position: absolute;
-    right: 12px;
-    bottom: 0px;
-    height: 252px;
+    right: -4px;
+    bottom: -6px;
+    height: 268px;
     object-fit: contain;
-    filter: drop-shadow(0 0 16px rgba(255, 140, 0, 0.45)) drop-shadow(0 10px 25px rgba(0,0,0,0.95));
+    filter: drop-shadow(0 0 14px rgba(255, 140, 0, 0.5)) drop-shadow(0 8px 20px rgba(0,0,0,0.95));
     z-index: 2;
   }
-  .left-pane {
+  /* Center Safe Zone: x=150px to 315px — clear of both XMB list and Jackie's head */
+  .center-pane {
     position: absolute;
-    left: 20px;
-    top: 20px;
-    width: 240px;
+    left: 148px;
+    top: 14px;
+    width: 162px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    gap: 7px;
     z-index: 3;
   }
   .logo-img {
-    width: 220px;
-    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 25px rgba(255, 215, 0, 0.4));
+    width: 158px;
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 20px rgba(255, 215, 0, 0.35));
   }
-  .edition-badge {
-    margin-top: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    background: linear-gradient(135deg, rgba(20, 25, 45, 0.92), rgba(10, 15, 30, 0.96));
-    border: 1px solid rgba(255, 215, 0, 0.65);
-    border-radius: 4px;
-    padding: 4px 9px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.25);
-  }
-  .edition-text {
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 1.5px;
-    color: #FFE082;
-    text-transform: uppercase;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-  }
-  .version-tag {
-    background: linear-gradient(135deg, #FF6F00, #FF8F00);
-    color: #FFF;
-    font-size: 8.5px;
-    font-weight: 800;
-    padding: 1.5px 6px;
-    border-radius: 3px;
-    letter-spacing: 0.5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
-  }
-  .credits {
-    margin-top: 7px;
+  .badge-row {
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  .luckvice-badge {
-    font-size: 9px;
+  .edition-badge {
+    background: linear-gradient(135deg, rgba(20, 25, 45, 0.94), rgba(10, 15, 30, 0.98));
+    border: 1px solid rgba(255, 215, 0, 0.7);
+    border-radius: 3px;
+    padding: 2.5px 7px;
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #FFE082;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+  }
+  .version-tag {
+    background: linear-gradient(135deg, #FF6F00, #FFA000);
+    color: #FFF;
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  .author-tag {
+    font-size: 8.5px;
     font-weight: 700;
-    letter-spacing: 1.2px;
+    letter-spacing: 1px;
     color: #64B5F6;
     text-shadow: 0 1px 3px rgba(0,0,0,0.95);
-  }
-  .bottom-decor {
-    position: absolute;
-    left: 20px;
-    bottom: 16px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    z-index: 3;
-  }
-  .dragon-icon {
-    width: 26px;
-    height: 26px;
-    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.9));
+    gap: 4px;
   }
   .features-strip {
-    font-size: 8px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: rgba(255, 255, 255, 0.9);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.95);
-    background: rgba(0, 0, 0, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
-    padding: 3px 8px;
+    padding: 3.5px 8px;
+    font-size: 7.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  .dragon-icon {
+    width: 18px;
+    height: 18px;
+    filter: drop-shadow(0 1px 4px rgba(0,0,0,0.9));
   }
 </style>
 </head>
@@ -127,20 +124,17 @@
   <div class="vignette"></div>
   <img class="jackie" src="jackie_cutout.png" alt="Jackie Chan">
   
-  <div class="left-pane">
+  <div class="center-pane">
     <img class="logo-img" src="jcslogo_cutout.png" alt="Jackie Chan Stuntmaster">
-    <div class="edition-badge">
-      <span class="edition-text">HD Edition</span>
+    <div class="badge-row">
+      <span class="edition-badge">HD EDITION</span>
       <span class="version-tag">BETA 3</span>
     </div>
-    <div class="credits">
-      <span class="luckvice-badge">ENHANCED BY LUCKVICE</span>
+    <div class="author-tag">by luckvice</div>
+    <div class="features-strip">
+      <img class="dragon-icon" src="../../res/pc/textures/collectibles/gold_dragon.png" alt="Dragon">
+      <span>60 FPS • MULTI LANGUAGE</span>
     </div>
-  </div>
-
-  <div class="bottom-decor">
-    <img class="dragon-icon" src="../../res/pc/textures/collectibles/gold_dragon.png" alt="Dragon">
-    <div class="features-strip">60 FPS • MULTI LANGUAGE</div>
   </div>
 </body>
 </html>

@@ -70,13 +70,15 @@ def update_eboot(eboot_path):
     psp_dir = ROOT / "psp"
     icon0 = (psp_dir / "ICON0.PNG").read_bytes()
     pic1 = (psp_dir / "PIC1.PNG").read_bytes()
-    pic0 = (psp_dir / "PIC0.PNG").read_bytes()
+    pic0 = b''  # Omit PIC0 so PIC1 background is fully unobstructed
     icon1 = (psp_dir / "ICON1.PMF").read_bytes() if (psp_dir / "ICON1.PMF").exists() else b''
+    snd0 = (psp_dir / "SND0.AT3").read_bytes() if (psp_dir / "SND0.AT3").exists() else b''
 
     entries[1] = icon0
     entries[2] = icon1
     entries[3] = pic0
     entries[4] = pic1
+    entries[5] = snd0
 
     off, new_offs = 40, []
     for e in entries:

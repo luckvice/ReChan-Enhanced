@@ -64,10 +64,20 @@ Beyond reconstruction, the project also introduces improvements over the origina
 - general quality-of-life improvements  
 
 ## Screenshots
+
+### Desktop Edition
 <p align="center">
   <img src="res/screenshots/title.png" width="30%">
   <img src="res/screenshots/hub.png" width="30%">
   <img src="res/screenshots/level.png" width="30%">
+</p>
+
+### PSP — RE:Chan HD Edition (Native 480×272)
+<p align="center">
+  <img src="res/screenshots_psp/xmb.png" width="24%" alt="PSP XMB Interface & Artwork">
+  <img src="res/screenshots_psp/title.png" width="24%" alt="PSP Native Title Screen">
+  <img src="res/screenshots_psp/hub.png" width="24%" alt="PSP City Hub with HD HUD">
+  <img src="res/screenshots_psp/gameplay.png" width="24%" alt="PSP 60 FPS Chinatown Gameplay">
 </p>
 
 ## Getting Started
@@ -96,6 +106,15 @@ the full feature lists of each edition.
 ## Platform editions
 
 ### PSP — *RE:Chan HD Edition* (Beta 3 — RC1 coming soon)
+
+<p align="center">
+  <img src="res/screenshots_psp/xmb.png" width="48%" alt="PSP XMB Interface & Artwork">
+  <img src="res/screenshots_psp/title.png" width="48%" alt="PSP Native Title Screen">
+</p>
+<p align="center">
+  <img src="res/screenshots_psp/hub.png" width="48%" alt="PSP City Hub with HD HUD">
+  <img src="res/screenshots_psp/gameplay.png" width="48%" alt="PSP 60 FPS Chinatown Gameplay">
+</p>
 
 A fully native PSP build (no emulation) compiled with PSPSDK, targeting the
 fixed 480×272 display. It ships as its own edition with platform features on

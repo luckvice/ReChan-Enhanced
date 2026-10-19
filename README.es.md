@@ -64,10 +64,20 @@ Más allá de la reconstrucción, el proyecto introduce mejoras respecto a la ve
 - Mejoras generales de calidad de vida  
 
 ## Capturas de Pantalla
+
+### Edición de Escritorio
 <p align="center">
   <img src="res/screenshots/title.png" width="30%">
   <img src="res/screenshots/hub.png" width="30%">
   <img src="res/screenshots/level.png" width="30%">
+</p>
+
+### PSP — RE:Chan HD Edition (Nativo 480×272)
+<p align="center">
+  <img src="res/screenshots_psp/xmb.png" width="24%" alt="Interfaz XMB de PSP y Artwork Oficial">
+  <img src="res/screenshots_psp/title.png" width="24%" alt="Pantalla de Título Nativa en PSP">
+  <img src="res/screenshots_psp/hub.png" width="24%" alt="Hub con HUD Moderno HD y Botones de PlayStation">
+  <img src="res/screenshots_psp/gameplay.png" width="24%" alt="Gameplay a 60 FPS en Chinatown">
 </p>
 
 ## Primeros Pasos
@@ -90,6 +100,15 @@ ReChan actualmente es compatible con Windows y Linux en x86 de 64 bits (`x86_64`
 ## Ediciones por Plataforma
 
 ### PSP — *RE:Chan HD Edition* (Beta 3 — RC1 muy pronto)
+
+<p align="center">
+  <img src="res/screenshots_psp/xmb.png" width="48%" alt="Interfaz XMB de PSP y Artwork Oficial">
+  <img src="res/screenshots_psp/title.png" width="48%" alt="Pantalla de Título Nativa en PSP">
+</p>
+<p align="center">
+  <img src="res/screenshots_psp/hub.png" width="48%" alt="Hub con HUD Moderno HD y Botones de PlayStation">
+  <img src="res/screenshots_psp/gameplay.png" width="48%" alt="Gameplay a 60 FPS en Chinatown">
+</p>
 
 Una compilación totalmente nativa para PSP (sin emulación) construida con PSPSDK, optimizada para la pantalla fija de 480×272. Se distribuye como una edición propia con funciones adicionales sobre el juego base:
 

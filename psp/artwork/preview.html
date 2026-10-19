@@ -85,12 +85,13 @@
   }
   .psp-xmb-icon {
     position: absolute;
-    left: 40px;
-    top: 50px;
-    width: 144px;
-    height: 80px;
-    border-radius: 6px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.9), 0 0 20px rgba(255, 202, 40, 0.4);
+    left: 20px;
+    top: 65px;
+    width: 114px;
+    height: 63px;
+    border-radius: 5px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.9), 0 0 16px rgba(255, 202, 40, 0.45);
+    border: 1px solid rgba(255, 215, 0, 0.8);
     animation: pulse 2.5s infinite alternate ease-in-out;
     z-index: 10;
     cursor: pointer;
@@ -105,20 +106,20 @@
   }
   .psp-title-bar {
     position: absolute;
-    left: 40px;
-    top: 140px;
-    font-size: 13px;
-    font-weight: 700;
+    left: 20px;
+    top: 136px;
+    font-size: 10.5px;
+    font-weight: 800;
     color: #fff;
     text-shadow: 0 2px 4px rgba(0,0,0,0.95);
     z-index: 10;
   }
   .psp-sub-bar {
     position: absolute;
-    left: 40px;
-    top: 158px;
-    font-size: 10px;
-    color: var(--accent-gold);
+    left: 20px;
+    top: 152px;
+    font-size: 8px;
+    color: #FFE082;
     text-shadow: 0 1px 3px rgba(0,0,0,0.9);
     z-index: 10;
   }
@@ -232,12 +233,17 @@
 
   <!-- Video Demo 15s -->
   <div class="card">
-    <div class="card-title">Vídeo de Background / Preview (15 Segundos)</div>
-    <div class="card-meta">Duração: 15.00s • 480 × 272 (MP4) e 144 × 80 (ICON1.PMF)</div>
-    <div class="img-frame">
-      <video src="../demo_15s_480x272.mp4" controls autoplay loop muted style="width: 100%; height: auto;"></video>
+    <div class="card-title">Vídeo de Background / Preview (15 Segundos com Áudio)</div>
+    <div class="card-meta">Duração: 15.00s • 480 × 272 (MP4) • ICON1.PMF e SND0.AT3 (ATRAC3)</div>
+    <div class="img-frame" style="flex-direction: column; gap: 8px;">
+      <video id="demo-vid" src="../demo_15s_480x272.mp4" controls loop style="width: 100%; height: auto; border-radius: 4px;"></video>
+      <div style="display: flex; gap: 8px; justify-content: center; width: 100%;">
+        <button onclick="var v = document.getElementById('demo-vid'); v.muted = false; v.play();" style="background: linear-gradient(135deg, #FF6F00, #FFA000); color: #fff; border: none; padding: 6px 14px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 11px;">
+          🔊 Tocar Vídeo com Som
+        </button>
+      </div>
     </div>
-    <div class="info-tag">Extraído diretamente de demo.str com áudio autêntico e convertido para ICON1.PMF e MP4.</div>
+    <div class="info-tag">Vídeo de 15s de demo.str com áudio autêntico em ATRAC3 (SND0.AT3) embutido no EBOOT do PSP!</div>
   </div>
 </div>
 
