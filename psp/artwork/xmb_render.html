@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 480px;
+    height: 272px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    user-select: none;
+  }
+  .bg {
+    position: absolute;
+    inset: 0;
+    width: 480px;
+    height: 272px;
+    object-fit: cover;
+  }
+  /* Top XMB bar */
+  .top-bar {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255,255,255,0.85);
+    font-size: 9px;
+    font-weight: 600;
+    z-index: 10;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  .clock {
+    letter-spacing: 0.5px;
+  }
+  .battery {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .battery-icon {
+    width: 14px;
+    height: 7px;
+    border: 1px solid rgba(255,255,255,0.8);
+    border-radius: 1.5px;
+    padding: 0.5px;
+    display: flex;
+    gap: 0.5px;
+  }
+  .battery-level {
+    flex: 1;
+    background: #4CAF50;
+    border-radius: 0.5px;
+  }
+  /* XMB Selection Card */
+  .xmb-selection {
+    position: absolute;
+    left: 28px;
+    top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    z-index: 5;
+  }
+  .icon-img {
+    width: 124px;
+    height: 69px;
+    border-radius: 5px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.9), 0 0 16px rgba(255, 193, 7, 0.45);
+    border: 1.5px solid rgba(255, 215, 0, 0.9);
+  }
+  .game-name {
+    color: #FFF;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.95);
+  }
+  .game-sub {
+    color: #FFE082;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  }
+</style>
+</head>
+<body>
+  <img class="bg" src="../PIC1.PNG" alt="PSP PIC1">
+  <div class="top-bar">
+    <span class="clock">10/19 21:00</span>
+    <div class="battery">
+      <div class="battery-icon">
+        <div class="battery-level"></div>
+        <div class="battery-level"></div>
+        <div class="battery-level"></div>
+      </div>
+    </div>
+  </div>
+  <div class="xmb-selection">
+    <img class="icon-img" src="../ICON0.PNG" alt="Game Icon">
+    <div class="game-name">Re:Chan HD Edition Beta 3</div>
+    <div class="game-sub">Jackie Chan Stuntmaster • 60 FPS • Multi Language</div>
+  </div>
+</body>
+</html>

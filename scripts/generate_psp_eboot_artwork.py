@@ -39,6 +39,7 @@ def render_artwork():
         ("pic1_background.html", psp_dir / "PIC1.PNG", 480, 272),
         ("icon0_cover.html", psp_dir / "ICON0.PNG", 144, 80),
         ("pic0_overlay.html", psp_dir / "PIC0.PNG", 310, 180),
+        ("xmb_render.html", ROOT / "res" / "screenshots_psp" / "xmb.png", 480, 272),
     ]
 
     for html_name, out_png, w, h in tasks:
