@@ -22,6 +22,15 @@
 #endif
 #include "vendor/stb/stb_image_write.h"
 
+#if defined(RC_PLATFORM_PSP)
+#include <malloc.h>
+#include "pddi/psp/psprender.h"
+static u32 s_peakRamBytes = 0;
+static u32 s_peakGpuUs = 0;
+static u64 s_totalGpuUs = 0;
+static u32 s_gpuSamples = 0;
+#endif
+
 static bool s_enabled = false;
 static s32 s_levelIndex = 0;
 static s32 s_levelId = -1;
@@ -168,6 +177,34 @@ void AutoTest_ParseArgs(int argc, char** argv) {
         }
     }
 
+    if (!s_enabled) {
+        static bool s_checkedFile = false;
+        if (!s_checkedFile) {
+            s_checkedFile = true;
+            const char* candidatePaths[] = { "AUTOTEST.TXT", "data/AUTOTEST.TXT", "../AUTOTEST.TXT" };
+            for (const char* path : candidatePaths) {
+                FILE* f = std::fopen(path, "r");
+                if (f) {
+                    std::vector<std::string> tokens;
+                    char buf[256];
+                    while (std::fscanf(f, "%255s", buf) == 1) {
+                        tokens.emplace_back(buf);
+                    }
+                    std::fclose(f);
+                    if (!tokens.empty()) {
+                        std::vector<char*> tokenPtrs;
+                        tokenPtrs.push_back(argv && argc > 0 && argv[0] ? argv[0] : const_cast<char*>("rechan"));
+                        for (auto& t : tokens) {
+                            tokenPtrs.push_back(const_cast<char*>(t.c_str()));
+                        }
+                        AutoTest_ParseArgs(static_cast<int>(tokenPtrs.size()), tokenPtrs.data());
+                        if (s_enabled) break;
+                    }
+                }
+            }
+        }
+    }
+
     if (s_fps < 1) {
         s_fps = 60;
     }
@@ -241,6 +278,24 @@ bool AutoTest_Step(GameState state) {
     }
 
     ++s_playFrames;
+
+#if defined(RC_PLATFORM_PSP)
+    struct mallinfo mi = mallinfo();
+    if (static_cast<u32>(mi.uordblks) > s_peakRamBytes) {
+        s_peakRamBytes = static_cast<u32>(mi.uordblks);
+    }
+    // Skip the warm-up frames of gameplay while initial textures/pages are
+    // decoded into cache and world entities finish spawning.
+    if (s_playFrames > 5) {
+        const u32 gpuUs = PspGetGpuDurationUs();
+        if (gpuUs > s_peakGpuUs) {
+            s_peakGpuUs = gpuUs;
+        }
+        s_totalGpuUs += gpuUs;
+        ++s_gpuSamples;
+    }
+#endif
+
     if (s_playFrames == 30 && s_warpGenerator >= 0) {
         WarpToGenerator(s_warpGenerator);
     }
@@ -264,6 +319,34 @@ bool AutoTest_Step(GameState state) {
     }
 
     LOG_ALWAYS("[AutoTest] Finished after %d gameplay frames", s_playFrames);
+
+#if defined(RC_PLATFORM_PSP)
+    FILE* rep = std::fopen("AUTOTEST_REPORT.TXT", "w");
+    if (!rep) rep = std::fopen("../AUTOTEST_REPORT.TXT", "w");
+    if (!rep) rep = std::fopen("data/AUTOTEST_REPORT.TXT", "w");
+    if (rep) {
+        const float peakGpuPct = (static_cast<float>(s_peakGpuUs) * 100.0f) / 16666.0f;
+        const float avgGpuUs = s_gpuSamples > 0 ? (static_cast<float>(s_totalGpuUs) / s_gpuSamples) : 0.0f;
+        const float avgGpuPct = (avgGpuUs * 100.0f) / 16666.0f;
+        const float peakRamMb = static_cast<float>(s_peakRamBytes) / (1024.0f * 1024.0f);
+        const bool ramOk = s_peakRamBytes <= (24u * 1024u * 1024u);
+        const bool gpuOk = avgGpuPct <= 80.0f;
+
+        std::fprintf(rep, "=== RECHAN PSP AUTOTEST REPORT ===\n");
+        std::fprintf(rep, "Status: %s\n", (ramOk && gpuOk && s_exitCode == 0) ? "PASS" : "FAIL");
+        std::fprintf(rep, "Frames: %d\n", s_playFrames);
+        std::fprintf(rep, "Peak RAM: %.2f MB (%u bytes) [Budget: 24.00 MB] -> %s\n",
+                     peakRamMb, s_peakRamBytes, ramOk ? "PASS" : "FAIL");
+        std::fprintf(rep, "Avg GPU (GE): %.1f %% (%.1f us) [Target: <= 80.0 %%] -> %s\n",
+                     avgGpuPct, avgGpuUs, (avgGpuPct <= 80.0f) ? "PASS" : "FAIL");
+        std::fprintf(rep, "Peak GPU (GE): %.1f %% (%u us)\n",
+                     peakGpuPct, s_peakGpuUs);
+        std::fclose(rep);
+    }
+    LOG_ALWAYS("[AutoTest] Peak RAM: %u bytes, Avg GPU: %llu us (%u frames)",
+               s_peakRamBytes, s_gpuSamples > 0 ? (s_totalGpuUs / s_gpuSamples) : 0ULL, s_gpuSamples);
+#endif
+
     s_finished = true;
     return false;
 }

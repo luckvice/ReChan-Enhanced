@@ -1793,6 +1793,38 @@ void pspDisplay::RenderOverlay() {
     }
 }
 
+bool pspDisplay::ReadBackBuffer(std::vector<unsigned char>& rgb, int& width, int& height) {
+    width = kWidth;
+    height = kHeight;
+    rgb.resize(static_cast<std::size_t>(kWidth) * kHeight * 3u);
+#if defined(PSP_TRIPLE_BUFFER)
+    const std::uintptr_t offset = static_cast<std::uintptr_t>(g_shownFramebuffer) * kFramebufferStride;
+#else
+    const std::uintptr_t offset = g_drawingSecondBuffer ? 0u : kFramebufferStride;
+#endif
+    const auto* pixels = reinterpret_cast<const u8*>(
+        (reinterpret_cast<std::uintptr_t>(sceGeEdramGetAddr()) + offset) | 0x40000000u);
+    u8* out = rgb.data();
+    for (int y = 0; y < kHeight; ++y) {
+        const u8* line = pixels + static_cast<std::size_t>(y) * kBufferWidth * kFramebufferPixelBytes;
+        for (int x = 0; x < kWidth; ++x, out += 3) {
+            u32 r, g, b;
+            if (kFramebufferPixelBytes == 2u) {
+                const u32 c = line[x * 2] | (static_cast<u32>(line[x * 2 + 1]) << 8);
+                r = (c & 0x1Fu) << 3; r |= r >> 5;
+                g = ((c >> 5) & 0x3Fu) << 2; g |= g >> 6;
+                b = ((c >> 11) & 0x1Fu) << 3; b |= b >> 5;
+            } else {
+                r = line[x * 4]; g = line[x * 4 + 1]; b = line[x * 4 + 2];
+            }
+            out[0] = static_cast<u8>(r);
+            out[1] = static_cast<u8>(g);
+            out[2] = static_cast<u8>(b);
+        }
+    }
+    return true;
+}
+
 #if defined(PSP_PERF_TELEMETRY)
 bool WritePspLastFrame(const char* path) {
     if (!path) return false;

@@ -436,6 +436,7 @@ public:
     void SetWndProc(pddiWndProc proc) override { wndProc = std::move(proc); }
     void AddOverlayCallback(OverlayCallback cb) override;
     void RenderOverlay() override;
+    bool ReadBackBuffer(std::vector<unsigned char>& rgb, int& width, int& height) override;
 
     void RequestClose() { closeRequested = true; }
 
