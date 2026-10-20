@@ -1,4 +1,5 @@
 #include "pc/inputaction.h"
+#include "pc/autotest.h"
 #include "p3d/input.h"
 #include "pddi/pddidev.h"
 #include "gen/control.h"
@@ -303,6 +304,17 @@ ActionInput::ActionInput() {
 }
 
 bool ActionInput::PollAction(Action action, PlatformInput* platform) const {
+    const u32 autoBtns = AutoTest_GetHeldButtons();
+    if (autoBtns) {
+        if ((autoBtns & PsxPad::Cross) && (action == ACTION_MENU_CONFIRM || action == ACTION_JUMP)) return true;
+        if ((autoBtns & PsxPad::Circle) && action == ACTION_MENU_BACK) return true;
+        if ((autoBtns & PsxPad::Start) && action == ACTION_OPEN_CLOSE_MENU) return true;
+        if ((autoBtns & PsxPad::Up) && (action == ACTION_MENU_UP || action == ACTION_MOVE_UP)) return true;
+        if ((autoBtns & PsxPad::Down) && (action == ACTION_MENU_DOWN || action == ACTION_MOVE_DOWN)) return true;
+        if ((autoBtns & PsxPad::Left) && (action == ACTION_MENU_LEFT || action == ACTION_MOVE_LEFT)) return true;
+        if ((autoBtns & PsxPad::Right) && (action == ACTION_MENU_RIGHT || action == ACTION_MOVE_RIGHT)) return true;
+    }
+
     const ActionBinding& b = bindings[action];
 
 #if !defined(RC_PLATFORM_SWITCH) && !defined(RC_PLATFORM_PSP) && !defined(RC_PLATFORM_PS2)
@@ -404,7 +416,7 @@ void ActionInput::Update(PlatformInput* platform) {
         hadKeyboardInputThisFrame = hasKeyboard;
         hadMouseInputThisFrame = hasMouse;
         hadGamepadInputThisFrame = hasGp;
-        if (hasGp) {
+        if (hasGp || AutoTest_GetHeldButtons() != 0) {
             gamepadActive = true;
         }
         if (hasDesktop) {

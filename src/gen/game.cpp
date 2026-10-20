@@ -938,6 +938,13 @@ void Game::SetState(GameState s) {
         }
     }
 
+#if CUSTOM_MENU
+    // Reclaim title splash textures (~2 MB) when entering gameplay
+    if (state == GameState::Play && g_feCustomMenuMgr) {
+        g_feCustomMenuMgr->ReleaseTitleScreenTextures();
+    }
+#endif
+
     LOG_ALWAYS("[Game] State: %d -> %d", static_cast<int>(prevState), static_cast<int>(state));
 #if defined(RC_PLATFORM_PSP) && defined(PSP_PERF_TELEMETRY)
     char trace[64];
@@ -1936,7 +1943,6 @@ bool Game::gsPlayState(Game* game) {
             }
 #endif
 
-            LOG("[Game] Pause requested from Play");
             game->SetState(GameState::Menu);
             Shock(ShockEnum::SHOCK_CLEAR);
         }
@@ -2021,7 +2027,6 @@ bool Game::gsPlayState(Game* game) {
             }
 #endif
 
-            LOG("[Game] Pause requested from Play");
             game->SetState(GameState::Menu);
             Shock(ShockEnum::SHOCK_CLEAR);
         }

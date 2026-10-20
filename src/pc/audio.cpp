@@ -137,6 +137,7 @@ static std::mutex g_listenerMutex;
 // Music state
 static ma_decoder g_musicDecoder;
 static bool g_musicActive = false;
+static bool g_musicPaused = false;
 static AudioSample g_musicSample = AUDIO_SAMPLE_INVALID;
 static bool g_musicSampleActive = false;
 static bool g_musicLoop = false;
@@ -621,7 +622,7 @@ static void audioCallback(ma_device* device, void* output, const void* /*input*/
     // Mix music
     {
         std::lock_guard<std::mutex> lock(g_musicMutex);
-        if (g_musicSampleActive) {
+        if (!g_musicPaused && g_musicSampleActive) {
             if (g_musicSample == AUDIO_SAMPLE_INVALID || g_musicSample > MAX_SAMPLES) {
                 g_musicSampleActive = false;
             }
@@ -668,7 +669,7 @@ static void audioCallback(ma_device* device, void* output, const void* /*input*/
                 }
             }
         }
-        else if (g_musicActive) {
+        else if (!g_musicPaused && g_musicActive) {
             // Read into temp buffer as f32
             f32 temp[4096];
             u32 remaining = frameCount;
@@ -1303,11 +1304,22 @@ void AudioEngine::StopMusic() {
         g_musicActive = false;
         ma_decoder_uninit(&g_musicDecoder);
     }
+    g_musicPaused = false;
     g_musicSample = AUDIO_SAMPLE_INVALID;
     g_musicSampleActive = false;
     g_musicPositionF = 0.0;
     g_musicFadeFramesTotal = 0;
     g_musicFadeFramesRemaining = 0;
+}
+
+void AudioEngine::PauseMusic() {
+    std::lock_guard<std::mutex> lock(g_musicMutex);
+    g_musicPaused = true;
+}
+
+void AudioEngine::ResumeMusic() {
+    std::lock_guard<std::mutex> lock(g_musicMutex);
+    g_musicPaused = false;
 }
 
 void AudioEngine::SetMusicVolume(f32 volume) {
@@ -1317,6 +1329,11 @@ void AudioEngine::SetMusicVolume(f32 volume) {
     g_musicFadeTargetVolume = volume;
     g_musicFadeFramesTotal = 0;
     g_musicFadeFramesRemaining = 0;
+}
+
+f32 AudioEngine::GetMusicVolume() {
+    std::lock_guard<std::mutex> lock(g_musicMutex);
+    return g_musicVolume;
 }
 
 void AudioEngine::FadeMusicVolume(f32 targetVolume, u32 fadeMs) {

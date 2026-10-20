@@ -1,4 +1,5 @@
 #include "pc/autotest.h"
+#include "pc/audio.h"
 #include "ai/generator.h"
 #include "ai/player.h"
 #include "gen/ai.h"
@@ -6,6 +7,7 @@
 #include "gen/control.h"
 #include "gen/world.h"
 #include "gen/game.h"
+#include "gen/director.h"
 #include "gen/time.h"
 #include "p3d/context.h"
 #include "pddi/pddidev.h"
@@ -22,6 +24,16 @@
 #endif
 #include "vendor/stb/stb_image_write.h"
 
+#if defined(RC_PLATFORM_PSP)
+#include <malloc.h>
+#include <pspkernel.h>
+#include "pddi/psp/psprender.h"
+static u32 s_peakRamBytes = 0;
+static u32 s_peakGpuUs = 0;
+static u64 s_totalGpuUs = 0;
+static u32 s_gpuSamples = 0;
+#endif
+
 static bool s_enabled = false;
 static s32 s_levelIndex = 0;
 static s32 s_levelId = -1;
@@ -33,6 +45,11 @@ static s32 s_frames = 300;
 static s32 s_fps = 60;
 static u32 s_heldButtons = 0;
 static std::string s_screenshotPath;
+static bool s_pauseTest = false;
+static u32 s_activeFrameButtons = 0;
+static s32 s_menuFrames = 0;
+static bool s_hasPaused = false;
+static bool s_hasUnpaused = false;
 
 static s32 s_playFrames = 0;
 static bool s_captureRequested = false;
@@ -166,6 +183,37 @@ void AutoTest_ParseArgs(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--screenshot") == 0 && hasValue) {
             s_screenshotPath = argv[++i];
         }
+        else if (std::strcmp(argv[i], "--pause-test") == 0) {
+            s_pauseTest = true;
+        }
+    }
+
+    if (!s_enabled) {
+        static bool s_checkedFile = false;
+        if (!s_checkedFile) {
+            s_checkedFile = true;
+            const char* candidatePaths[] = { "AUTOTEST.TXT", "data/AUTOTEST.TXT", "../AUTOTEST.TXT" };
+            for (const char* path : candidatePaths) {
+                FILE* f = std::fopen(path, "r");
+                if (f) {
+                    std::vector<std::string> tokens;
+                    char buf[256];
+                    while (std::fscanf(f, "%255s", buf) == 1) {
+                        tokens.emplace_back(buf);
+                    }
+                    std::fclose(f);
+                    if (!tokens.empty()) {
+                        std::vector<char*> tokenPtrs;
+                        tokenPtrs.push_back(argv && argc > 0 && argv[0] ? argv[0] : const_cast<char*>("rechan"));
+                        for (auto& t : tokens) {
+                            tokenPtrs.push_back(const_cast<char*>(t.c_str()));
+                        }
+                        AutoTest_ParseArgs(static_cast<int>(tokenPtrs.size()), tokenPtrs.data());
+                        if (s_enabled) break;
+                    }
+                }
+            }
+        }
     }
 
     if (s_fps < 1) {
@@ -210,7 +258,7 @@ f32 AutoTest_GetFixedDeltaTime() {
 }
 
 u32 AutoTest_GetHeldButtons() {
-    return (s_enabled && s_playFrames > 0) ? s_heldButtons : 0;
+    return s_activeFrameButtons;
 }
 
 void AutoTest_Fail(int exitCode, const char* reason) {
@@ -232,15 +280,63 @@ bool AutoTest_Step(GameState state) {
         p3d::display->AddOverlayCallback(CaptureOverlay);
     }
 
+    s_activeFrameButtons = (s_enabled && s_playFrames > 0) ? s_heldButtons : 0;
+
     if (state != GameState::Play) {
         if (s_playFrames == 0 && Time::GetTimeInSeconds() - s_startTime > kReachGameplayTimeoutSec) {
             AutoTest_Fail(11, "never reached gameplay");
             return false;
         }
+        if (s_pauseTest && state == GameState::Menu) {
+            s_hasPaused = true;
+            ++s_menuFrames;
+#if defined(RC_PLATFORM_PSP)
+            LOG_ALWAYS("[AutoTest] In Menu: frame %d musicVol=%.3f gpuUs=%u", s_menuFrames, AudioEngine::GetMusicVolume(), PspGetGpuDurationUs());
+#else
+            LOG_ALWAYS("[AutoTest] In Menu: frame %d musicVol=%.3f", s_menuFrames, AudioEngine::GetMusicVolume());
+#endif
+            if (s_menuFrames >= 20 && s_menuFrames <= 25) {
+                LOG_ALWAYS("[AutoTest] Injecting UNPAUSE (Start) from Menu frame %d", s_menuFrames);
+                s_activeFrameButtons |= PsxPad::Start;
+            }
+        }
         return true;
     }
 
     ++s_playFrames;
+    if ((s_playFrames % 10) == 0) {
+        LOG_ALWAYS("[AutoTest] PlayFrame %d: isMusicPlaying=%d musicVol=%.3f", s_playFrames, AudioEngine::IsMusicPlaying() ? 1 : 0, AudioEngine::GetMusicVolume());
+    }
+
+    if (s_pauseTest) {
+        if (s_playFrames >= 60 && (!g_director || g_director->scriptState == 0) && !s_hasPaused) {
+            LOG_ALWAYS("[AutoTest] Injecting PAUSE (Start) at play frame %d (scriptState=%d)",
+                       s_playFrames, g_director ? g_director->scriptState : -1);
+            s_activeFrameButtons |= PsxPad::Start;
+        }
+        if (s_hasPaused && s_menuFrames > 0 && !s_hasUnpaused) {
+            s_hasUnpaused = true;
+            LOG_ALWAYS("[AutoTest] Resumed back to Play at frame %d!", s_playFrames);
+        }
+    }
+
+#if defined(RC_PLATFORM_PSP)
+    struct mallinfo mi = mallinfo();
+    if (static_cast<u32>(mi.uordblks) > s_peakRamBytes) {
+        s_peakRamBytes = static_cast<u32>(mi.uordblks);
+    }
+    // Skip the warm-up frames of gameplay while initial textures/pages are
+    // decoded into cache and world entities finish spawning.
+    if (s_playFrames > 5) {
+        const u32 gpuUs = PspGetGpuDurationUs();
+        if (gpuUs > s_peakGpuUs) {
+            s_peakGpuUs = gpuUs;
+        }
+        s_totalGpuUs += gpuUs;
+        ++s_gpuSamples;
+    }
+#endif
+
     if (s_playFrames == 30 && s_warpGenerator >= 0) {
         WarpToGenerator(s_warpGenerator);
     }
@@ -263,8 +359,51 @@ bool AutoTest_Step(GameState state) {
         return true;
     }
 
+    if (s_pauseTest) {
+        if (!s_hasPaused || !s_hasUnpaused) {
+            AutoTest_Fail(12, "pause test failed to pause or unpause");
+            return false;
+        }
+        if (AudioEngine::GetMusicVolume() <= 0.05f) {
+            AutoTest_Fail(13, "music did not resume after unpause");
+            return false;
+        }
+        LOG_ALWAYS("[AutoTest] Music resume verified successfully! volume=%.3f", AudioEngine::GetMusicVolume());
+    }
+
     LOG_ALWAYS("[AutoTest] Finished after %d gameplay frames", s_playFrames);
+
+#if defined(RC_PLATFORM_PSP)
+    FILE* rep = std::fopen("AUTOTEST_REPORT.TXT", "w");
+    if (!rep) rep = std::fopen("../AUTOTEST_REPORT.TXT", "w");
+    if (!rep) rep = std::fopen("data/AUTOTEST_REPORT.TXT", "w");
+    if (rep) {
+        const float peakGpuPct = (static_cast<float>(s_peakGpuUs) * 100.0f) / 16666.0f;
+        const float avgGpuUs = s_gpuSamples > 0 ? (static_cast<float>(s_totalGpuUs) / s_gpuSamples) : 0.0f;
+        const float avgGpuPct = (avgGpuUs * 100.0f) / 16666.0f;
+        const float peakRamMb = static_cast<float>(s_peakRamBytes) / (1024.0f * 1024.0f);
+        const bool ramOk = s_peakRamBytes <= (24u * 1024u * 1024u);
+        const bool gpuOk = avgGpuPct <= 80.0f;
+
+        std::fprintf(rep, "=== RECHAN PSP AUTOTEST REPORT ===\n");
+        std::fprintf(rep, "Status: %s\n", (ramOk && gpuOk && s_exitCode == 0) ? "PASS" : "FAIL");
+        std::fprintf(rep, "Frames: %d\n", s_playFrames);
+        std::fprintf(rep, "Peak RAM: %.2f MB (%u bytes) [Budget: 24.00 MB] -> %s\n",
+                     peakRamMb, s_peakRamBytes, ramOk ? "PASS" : "FAIL");
+        std::fprintf(rep, "Avg GPU (GE): %.1f %% (%.1f us) [Target: <= 80.0 %%] -> %s\n",
+                     avgGpuPct, avgGpuUs, (avgGpuPct <= 80.0f) ? "PASS" : "FAIL");
+        std::fprintf(rep, "Peak GPU (GE): %.1f %% (%u us)\n",
+                     peakGpuPct, s_peakGpuUs);
+        std::fclose(rep);
+    }
+    LOG_ALWAYS("[AutoTest] Peak RAM: %u bytes, Avg GPU: %llu us (%u frames)",
+               s_peakRamBytes, s_gpuSamples > 0 ? (s_totalGpuUs / s_gpuSamples) : 0ULL, s_gpuSamples);
+#endif
+
     s_finished = true;
+#if defined(RC_PLATFORM_PSP)
+    sceKernelExitGame();
+#endif
     return false;
 }
 

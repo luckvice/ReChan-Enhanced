@@ -388,6 +388,11 @@ static bool Ps2MusicDisabled() {
 
 // PC/PSP: decode FAG to PCM, load as AudioSample, play through the dedicated music mix.
 bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
+    if (fagPath) {
+        std::strncpy(currentMusicPath, fagPath, sizeof(currentMusicPath) - 1);
+        currentMusicPath[sizeof(currentMusicPath) - 1] = '\0';
+        currentMusicSong = songIndex;
+    }
 #if defined(RC_PLATFORM_PS2)
     (void)fagPath; (void)songIndex; (void)volume;
     Ps2MusicDisabled();
@@ -399,6 +404,11 @@ bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
 
 #if defined(RC_PLATFORM_PSP)
     StopMusic();
+    if (fagPath) {
+        std::strncpy(currentMusicPath, fagPath, sizeof(currentMusicPath) - 1);
+        currentMusicPath[sizeof(currentMusicPath) - 1] = '\0';
+        currentMusicSong = songIndex;
+    }
     musicVolume = volume;
     musicPlaying = AudioEngine::PlayMusicSong(
         fagPath, songIndex, musicMuted ? 0.0f : volume, true);
@@ -432,6 +442,11 @@ bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
 }
 
 bool Sound::PlayMusicTrack(const char* fagPath, f32 volume) {
+    if (fagPath) {
+        std::strncpy(currentMusicPath, fagPath, sizeof(currentMusicPath) - 1);
+        currentMusicPath[sizeof(currentMusicPath) - 1] = '\0';
+        currentMusicSong = 0;
+    }
 #if defined(RC_PLATFORM_PS2)
     (void)fagPath; (void)volume;
     Ps2MusicDisabled();
@@ -443,6 +458,11 @@ bool Sound::PlayMusicTrack(const char* fagPath, f32 volume) {
 
 #if defined(RC_PLATFORM_PSP)
     StopMusic();
+    if (fagPath) {
+        std::strncpy(currentMusicPath, fagPath, sizeof(currentMusicPath) - 1);
+        currentMusicPath[sizeof(currentMusicPath) - 1] = '\0';
+        currentMusicSong = 0;
+    }
     musicVolume = volume;
     musicPlaying = AudioEngine::PlayMusic(fagPath, musicMuted ? 0.0f : volume, true);
     return musicPlaying;
@@ -579,6 +599,8 @@ void Sound::StopMusic() {
     }
     musicPlaying = false;
     musicMuted = false;
+    currentMusicPath[0] = '\0';
+    currentMusicSong = 0;
 }
 
 void Sound::SetMusicVolume(f32 volume) {
@@ -595,11 +617,20 @@ void Sound::SetDialogVolume(f32 volume) {
 }
 
 void Sound::MuteMusic() {
-    musicMuted = true;
-    AudioEngine::FadeMusicVolume(0.0f, PSX_MUSIC_FADE_MS);
+    if (!musicMuted) {
+        musicMuted = true;
+        AudioEngine::FadeMusicVolume(0.0f, PSX_MUSIC_FADE_MS);
+        AudioEngine::PauseMusic();
+    }
 }
 
 void Sound::UnmuteMusic() {
     musicMuted = false;
-    AudioEngine::FadeMusicVolume(musicVolume, PSX_MUSIC_FADE_MS);
+    AudioEngine::ResumeMusic();
+    if (musicPlaying && !AudioEngine::IsMusicPlaying() && currentMusicPath[0] != '\0') {
+        PlayMusicTrackSong(currentMusicPath, currentMusicSong, musicVolume);
+    }
+    else {
+        AudioEngine::FadeMusicVolume(musicVolume, PSX_MUSIC_FADE_MS);
+    }
 }

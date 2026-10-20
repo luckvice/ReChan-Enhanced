@@ -78,7 +78,10 @@ public:
 #endif
     static bool PlayMusicSample(AudioSample sample, f32 volume = 1.0f, bool loop = true);
     static void StopMusic();
+    static void PauseMusic();
+    static void ResumeMusic();
     static void SetMusicVolume(f32 volume);
+    static f32 GetMusicVolume();
     static void FadeMusicVolume(f32 targetVolume, u32 fadeMs);
     static bool IsMusicPlaying();
 

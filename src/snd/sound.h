@@ -94,6 +94,8 @@ public:
     f32 dialogVolume = 1.0f;
 
     // PC: music control
+    char currentMusicPath[64] = {};
+    u32 currentMusicSong = 0;
     bool PlayMusicTrack(const char* fagPath, f32 volume = 1.0f);
     bool PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume = 1.0f);
 
