@@ -532,7 +532,10 @@ public:
         pageBindingValid = false;
     }
     void SetVRAMHandle(u32 handle) override {
-        if (vramHandle != handle) pageBindingValid = false;
+        if (vramHandle != handle) {
+            pageBindingValid = false;
+            clutBindingValid = false;
+        }
         vramHandle = handle;
     }
     void SetTexInfoOverride(bool enabled, u32 word) override {

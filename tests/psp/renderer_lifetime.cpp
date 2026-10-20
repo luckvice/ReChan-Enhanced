@@ -1106,6 +1106,28 @@ int main() {
 #endif
 
     {
+        // Untextured draws interleaved with textured draws:
+        // Drawing an untextured primitive (like buffer without texinfo, or vramHandle == 0)
+        // turns off GU_TEXTURE_2D. The subsequent draw on the same page and CLUT
+        // must re-enable GU_TEXTURE_2D and not return early under samePage caching.
+        ctx.BeginFrame();
+        ctx.SetVRAMHandle(handle);
+        ctx.SetTexInfoOverride(false, 0);
+        ctx.SetBlendMode(PDDI_BLEND_NONE);
+        ctx.DrawPrimBuffer(&packedBuffer);
+        require(FakeGe::lastDrawTextured, "first draw must be textured");
+
+        // Draw an untextured primitive (buffer has no material keys/UV)
+        ctx.DrawPrimBuffer(&buffer, 0, 3);
+        require(!FakeGe::lastDrawTextured, "untextured buffer must draw untextured");
+
+        // Draw the textured buffer again with the same page and CLUT
+        ctx.DrawPrimBuffer(&packedBuffer);
+        require(FakeGe::lastDrawTextured, "draw after untextured primitive must restore texturing");
+        display.SwapBuffers();
+    }
+
+    {
         // Presentation under VBlanks at random points between and inside
         // frames: the display stubs reject any GE write to the buffer on
         // screen or queued, and any swap over a still-queued frame.
