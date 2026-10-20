@@ -1,4 +1,4 @@
-﻿#include "gen/common.h"
+#include "gen/common.h"
 #include "ai/ladder.h"
 #include "ai/humanoid.h"
 #include "ai/activezn.h"
@@ -252,6 +252,9 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
 
     if (!hum) return;
 
+    if (state == 0 && deathCheckCRC == 0 && hatchTriggerCRC == 0) {
+        DeathCheck();
+    }
     if (state != 2) return;
     if (cutscenePending == 1) return;
 
@@ -276,7 +279,7 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
         hum->groundStandHeight = hum->pos.y;
 
         if (teleportTargetCRC != 0) {
-            if (savedHomePos.y <= hatchYTrigger) {
+            if (savedHomePos.y >= hatchYTrigger) {
                 if (g_director) {
                     g_director->SetCodeSnip(Director::GetNISLadder1Script(), this);
                 }
@@ -350,7 +353,11 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
     }
 
     // PSX 0x8008A50C: bottom approach uses current pos.y.
-    if (hum->pos.y < minY) return;
+    // Allow humanoid vertical reach tolerance below minY so ladders slightly
+    // above floor level (such as roof20 in Hub sewers, floor Y=9984..10240, ladder minY=10368)
+    // can be grabbed cleanly from the ground.
+    s32 reachTolerance = hum->collBboxMin.z > 0 ? (s32)hum->collBboxMin.z : 768;
+    if (hum->pos.y < (minY - reachTolerance)) return;
     if (savedHomePos.z >= maxZ - 384) return;
 
     PutHumanoidOnLadder(hum);

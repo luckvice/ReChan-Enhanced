@@ -19,6 +19,7 @@ esac
     "$root/src/gen/colvol.cpp" \
     "$root/src/ai/fevolume.cpp" \
     "$root/src/ai/teleporter.cpp" \
+    "$root/src/ai/ladder.cpp" \
     "$root/src/gen/database.cpp" \
     -o "$output/hub_sewer_trigger"
 

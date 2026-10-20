@@ -18,9 +18,12 @@
 #include "ai/player.h"
 #include "ai/fevolume.h"
 #include "ai/teleporter.h"
+#include "ai/ladder.h"
+#include "ai/platform.h"
 #include "fe/femenumgr.h"
 #include "fe/hud.h"
 #include "gen/ai.h"
+#include "gen/director.h"
 #include "pc/log.h"
 #include <cstdio>
 #include <cstdlib>
@@ -73,6 +76,9 @@ tPrimGeom::~tPrimGeom() { delete[] ownedRawData; }
 CollisionSector::CollisionSector() {}
 void CollisionSector::Load(unsigned int*) {}
 void CollisionSector::Unload() {}
+bool CollisionSector::LedgePrototype(const LVector&, const LVector&, s32, s32, LVector&, LVector&, u16&, s32) {
+    return false;
+}
 CollisionSector g_collisionSectors[MAX_COLLISION_SECTORS];
 
 // Minimal stubs for standalone test execution
@@ -83,7 +89,21 @@ feMenuMgr* g_feMenuMgr = nullptr;
 HUD* g_hud = nullptr;
 AI* g_ai = nullptr;
 Display* g_display = nullptr;
+Director* g_director = nullptr;
 u8 g_arrowInside = 0;
+
+static s32 s_dummyNISLadderScript = 0;
+s32* Director::GetNISLadder1Script() {
+    return &s_dummyNISLadderScript;
+}
+void Director::SetCodeSnip(s32* snip, Thing* /*thing*/) {
+    codeSnipPtr = snip;
+    scriptState = 537;
+}
+
+s32 Platform::AtEndOfPath() const {
+    return 0;
+}
 
 static FrontEndVolume* s_lastShowLevelVolume = nullptr;
 static Humanoid* s_lastShowLevelHumanoid = nullptr;
@@ -151,11 +171,12 @@ void Thing::Move() {}
 void Thing::Reset() {}
 void Thing::Think() {}
 
-// Humanoid member stubs (called by Teleporter and FrontEndVolume)
+// Humanoid member stubs (called by Teleporter, FrontEndVolume, and Ladder)
 void Humanoid::DeleteRightHandObj() {}
 void Humanoid::DeleteLeftHandObj() {}
 void Humanoid::FaceAngleY(s32, s32) {}
-void Humanoid::SetActionState(u32, s32) {}
+void Humanoid::SetActionState(u32 action, s32) { actionState = action; }
+void Humanoid::PrepareLedgeLatch(const LVector&, const LVector&) {}
 bool Humanoid::FacePointDesired(const LVector&) { return true; }
 void Humanoid::FacePoint(const LVector&, s32) {}
 
@@ -256,6 +277,11 @@ int main() {
 
     alignas(Player) static u8 s_mockPlayerBuf[sizeof(Player)] = {};
     Player* mockPlayer = reinterpret_cast<Player*>(s_mockPlayerBuf);
+    static void* s_mockPlayerVtable[64] = {};
+    s_mockPlayerVtable[0xa0 / sizeof(void*)] = (void*)+[](Humanoid* h, u32 act, s32) {
+        h->actionState = act;
+    };
+    *reinterpret_cast<void**>(mockPlayer) = s_mockPlayerVtable;
     mockPlayer->collBboxMin = { 175, 0, 768 };
     mockPlayer->pos = { -2560, -1408, -2304 }; // at manhole in block 3
     mockPlayer->homePos = mockPlayer->pos;
@@ -397,6 +423,68 @@ int main() {
     tunnel3.HandleHumanoidCollision(mockPlayer);
     require(s_lastShowLevelVolume == &tunnel3, "Tunnel 3 must trigger ShowLevel");
 
-    std::printf("PASS: Hub sewer tunnel activation and teleporter tests succeeded!\n");
+    // 7. Test Hub Sewer Tunnel Exit Ladder (roof20 in Block 6)
+    // Position: (-12416, 11392, 26496), size: (256, 2048, 256), hatchYTrigger = 11000, teleportTargetCRC = p3dHash("sOUT")
+    DBVolume dbVolLadder;
+    dbVolLadder.pos = { -12416, 11392, 26496 };
+    dbVolLadder.bboxMin = { -12416 - 128, 11392 - 1024, 26496 - 128 };
+    dbVolLadder.bboxMax = { -12416 + 128, 11392 + 1024, 26496 + 128 };
+    dbVolLadder.attribCount = 5;
+    dbVolLadder.attribs = new DBAttrib[5]{
+        { 6, 1, 180, nullptr },          // faceAngle = 180
+        { 7, 0, 0, "TRUE" },             // hatchEnabled = 1
+        { 10, 0, 0, "sOUT" },            // teleportTargetCRC = p3dHash("sOUT")
+        { 12, 1, 11000, nullptr },       // hatchYTrigger = 11000
+        { 15, 1, 6, nullptr }            // block 6
+    };
+
+    Ladder ladder(&dbVolLadder.pos, AITypes::TT_LADDER);
+    ladder.AnalyzeMesh(&dbVolLadder);
+    require(ladder.teleportTargetCRC == (s32)p3dHash("sOUT"), "Ladder must have teleportTargetCRC for sOUT");
+    require(ladder.hatchYTrigger == 11000, "Ladder must have hatchYTrigger = 11000");
+
+    ladder.Reset();
+    require(ladder.state == 0, "Ladder initially resets to state 0");
+
+    alignas(Director) static u8 s_mockDirectorBuf[sizeof(Director)] = {};
+    g_director = reinterpret_cast<Director*>(s_mockDirectorBuf);
+    g_director->codeSnipPtr = nullptr;
+    g_director->scriptState = 0;
+
+    // Test 7a: Player on tunnel floor beneath ladder (Y=10240, while ladder minY=10368)
+    // The player's vertical reach must allow grabbing the bottom rung
+    mockPlayer->pos = { -12416, 10240, 26496 };
+    mockPlayer->homePos = mockPlayer->pos;
+    mockPlayer->actionState = 0; // AS_STAND
+    mockPlayer->commandBits = (1 << 7); // Grab button
+
+    ladder.HandleHumanoidCollision(mockPlayer);
+    require(ladder.state == 2, "Passive ladder must transition to state 2 upon collision check");
+    require(mockPlayer->actionState == AS_LADDER_CLIMB_UP,
+            "Jackie must grab ladder (roof20) from the sewer floor beneath minY");
+    require(mockPlayer->homePos.x == ladder.pos.x && mockPlayer->homePos.z == ladder.pos.z,
+            "Jackie XZ must align to ladder upon grab");
+
+    // Test 7b: Player transitions to AS_LADDER_CLIMBING (27) at bottom (pos.y = 10368)
+    mockPlayer->actionState = AS_LADDER_CLIMBING;
+    mockPlayer->pos = { -12416, 10368, 26496 };
+    mockPlayer->homePos = mockPlayer->pos;
+    ladder.cutscenePending = 0;
+
+    ladder.HandleHumanoidCollision(mockPlayer);
+    require(ladder.cutscenePending == 0,
+            "Ladder cutscene must NOT trigger at bottom (10368 < hatchYTrigger 11000)");
+
+    // Test 7c: Player climbs up to hatchYTrigger (11000)
+    mockPlayer->pos = { -12416, 11000, 26496 };
+    mockPlayer->homePos = mockPlayer->pos;
+
+    ladder.HandleHumanoidCollision(mockPlayer);
+    require(ladder.cutscenePending == 1,
+            "Ladder cutscene must trigger when player climbs to hatchYTrigger (11000)");
+    require(g_director->codeSnipPtr == Director::GetNISLadder1Script(),
+            "Director must receive NIS ladder script on cutscene trigger");
+
+    std::printf("PASS: Hub sewer tunnel activation, teleporter, and ladder grab tests succeeded!\n");
     return 0;
 }
