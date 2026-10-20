@@ -2739,6 +2739,9 @@ void feCustomMenuMgr::Activate(MenuPage startPage) {
 }
 
 void feCustomMenuMgr::Deactivate() {
+    if (!m_active) {
+        return;
+    }
     PlaySound(FE_SND_MENU_ACCEPT);
     if (m_currPage != MenuPage_Title) {
         rsEvent(RS_UNMUTE, 0, 0, 0);

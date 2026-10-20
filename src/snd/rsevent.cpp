@@ -2469,7 +2469,6 @@ s32 jcsHandleControlEvent(s32 event, s32 param1, s32 param2, s32 param3) {
             break;
 
         case RS_MUTE: // 10
-            LOG("[rsEvent] Mute");
             if (!g_muteFlag) {
                 jcsFadeOutEngine(15);
                 g_muteFlag = 1;
@@ -2477,11 +2476,9 @@ s32 jcsHandleControlEvent(s32 event, s32 param1, s32 param2, s32 param3) {
             break;
 
         case RS_UNMUTE: // 11
-            LOG("[rsEvent] Unmute");
             if (g_muteFlag) {
-                if (!g_pauseFlag) {
-                    jcsFadeInEngine(15);
-                }
+                g_pauseFlag = 0;
+                jcsFadeInEngine(15);
                 g_muteFlag = 0;
             }
             break;

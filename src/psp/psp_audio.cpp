@@ -110,6 +110,7 @@ struct MusicStream {
     float holdRight = 0.0f;
     bool loop = true;
     std::atomic_bool active{false};
+    std::atomic_bool paused{false};
     std::array<u8, kMusicChunkBytes * 2> compressedPair = {};
     std::array<MusicChunk, 2> chunks = {};
 };
@@ -210,6 +211,8 @@ static bool PrepareMusicPair(u32 pair, MusicChunk& destination) {
         || g_musicStream.file->Read(g_musicStream.compressedPair.data(),
                                     g_musicStream.compressedPair.size())
             != g_musicStream.compressedPair.size()) {
+        LOG("[PSP Audio] PrepareMusicPair failed: pair=%u offset=%u dataEnd=%u hasFile=%d",
+            pair, leftOffset, g_musicStream.dataEnd, g_musicStream.file ? 1 : 0);
         return false;
     }
 
@@ -331,6 +334,9 @@ static bool PromoteMusicPair(u32 pair) {
     g_musicStream.currentPair = pair;
     g_musicStream.readyPair.store(kInvalidPair, std::memory_order_release);
     g_musicStream.readyBuffer.store(kInvalidBuffer, std::memory_order_release);
+    if (g_musicStream.requestSema >= 0) {
+        sceKernelSignalSema(g_musicStream.requestSema, 1);
+    }
     return true;
 }
 
@@ -396,6 +402,7 @@ static void MixMusicRun(s32* mix, u32 count, const MusicChunk& chunk, u32 frames
 static void MixMusicStream(s32* mix, u32 requestedFrames) {
     g_musicMixers.fetch_add(1, std::memory_order_acquire);
     if (!g_musicStream.active.load(std::memory_order_acquire)
+        || g_musicStream.paused.load(std::memory_order_acquire)
         || g_musicStream.totalFrames == 0) {
         g_musicMixers.fetch_sub(1, std::memory_order_release);
         return;
@@ -542,6 +549,7 @@ static void ResetMusicStream() {
     // Deactivate first, then wait for an already-running callback before
     // releasing the file it may still be reading.
     g_musicStream.active.store(false, std::memory_order_release);
+    g_musicStream.paused.store(false, std::memory_order_release);
     while (g_musicMixers.load(std::memory_order_acquire) != 0) {
         sceKernelDelayThread(0);
     }
@@ -1035,10 +1043,37 @@ void AudioEngine::SetMusicVolume(f32 volume) {
         SetVoiceVolume(g_musicVoice, volume);
     }
 }
+f32 AudioEngine::GetMusicVolume() {
+    return g_musicStream.active.load(std::memory_order_acquire) ? g_musicStream.volume : 0.0f;
+}
+void AudioEngine::PauseMusic() {
+    if (!g_musicStream.active.load(std::memory_order_acquire)) return;
+    g_musicStream.paused.store(true, std::memory_order_release);
+}
+void AudioEngine::ResumeMusic() {
+    if (g_musicStream.paused.load(std::memory_order_acquire)) {
+        g_musicStream.paused.store(false, std::memory_order_release);
+    }
+    if (g_musicStream.file && g_musicStream.totalFrames > 0) {
+        if (!g_musicStream.active.load(std::memory_order_acquire)) {
+            g_musicStream.workerError.store(false, std::memory_order_release);
+            g_musicStream.active.store(true, std::memory_order_release);
+            const u32 pair = static_cast<u32>((g_musicStream.cursor >> kCursorFractionBits) / g_musicStream.framesPerPair);
+            if (pair < g_musicStream.pairCount) {
+                RequestMusicPair(pair);
+            }
+        }
+    }
+}
 void AudioEngine::FadeMusicVolume(f32 volume, u32 fadeMs) {
     if (g_musicStream.active.load(std::memory_order_acquire)) {
         g_musicStream.targetVolume = std::max(volume, 0.0f);
-        g_musicStream.fadeFrames = fadeMs * kOutputRate / 1000;
+        if (fadeMs == 0) {
+            g_musicStream.volume = g_musicStream.targetVolume;
+            g_musicStream.fadeFrames = 0;
+        } else {
+            g_musicStream.fadeFrames = fadeMs * kOutputRate / 1000;
+        }
     }
     else {
         FadeVoiceVolume(g_musicVoice, volume, fadeMs);

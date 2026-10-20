@@ -298,6 +298,10 @@ int main(int argc, char** argv) {
     }
 #if !defined(NDEBUG) || defined(PSP_GU_DIAGNOSTIC) || defined(PSP_STAGE_DIAGNOSTIC)
     Log::Get().Init("PSP_LOG.TXT");
+#else
+    if (AutoTest_IsEnabled()) {
+        Log::Get().Init("PSP_LOG.TXT");
+    }
 #endif
 #endif
 

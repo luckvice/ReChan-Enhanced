@@ -1943,7 +1943,6 @@ bool Game::gsPlayState(Game* game) {
             }
 #endif
 
-            LOG("[Game] Pause requested from Play");
             game->SetState(GameState::Menu);
             Shock(ShockEnum::SHOCK_CLEAR);
         }
@@ -2028,7 +2027,6 @@ bool Game::gsPlayState(Game* game) {
             }
 #endif
 
-            LOG("[Game] Pause requested from Play");
             game->SetState(GameState::Menu);
             Shock(ShockEnum::SHOCK_CLEAR);
         }

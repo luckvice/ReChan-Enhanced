@@ -69,7 +69,12 @@ bool AudioEngine::PlayMusicSample(AudioSample, f32, bool) {
 
 void AudioEngine::StopMusic() {}
 
+void AudioEngine::PauseMusic() {}
+void AudioEngine::ResumeMusic() {}
+
 void AudioEngine::SetMusicVolume(f32) {}
+
+f32 AudioEngine::GetMusicVolume() { return 0.0f; }
 
 void AudioEngine::FadeMusicVolume(f32, u32) {}
 

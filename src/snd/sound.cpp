@@ -432,6 +432,10 @@ bool Sound::PlayMusicTrackSong(const char* fagPath, u32 songIndex, f32 volume) {
 }
 
 bool Sound::PlayMusicTrack(const char* fagPath, f32 volume) {
+    if (fagPath) {
+        std::strncpy(currentMusicPath, fagPath, sizeof(currentMusicPath) - 1);
+        currentMusicPath[sizeof(currentMusicPath) - 1] = '\0';
+    }
 #if defined(RC_PLATFORM_PS2)
     (void)fagPath; (void)volume;
     Ps2MusicDisabled();
@@ -595,11 +599,20 @@ void Sound::SetDialogVolume(f32 volume) {
 }
 
 void Sound::MuteMusic() {
-    musicMuted = true;
-    AudioEngine::FadeMusicVolume(0.0f, PSX_MUSIC_FADE_MS);
+    if (!musicMuted) {
+        musicMuted = true;
+        AudioEngine::FadeMusicVolume(0.0f, PSX_MUSIC_FADE_MS);
+        AudioEngine::PauseMusic();
+    }
 }
 
 void Sound::UnmuteMusic() {
     musicMuted = false;
-    AudioEngine::FadeMusicVolume(musicVolume, PSX_MUSIC_FADE_MS);
+    AudioEngine::ResumeMusic();
+    if (musicPlaying && !AudioEngine::IsMusicPlaying() && currentMusicPath[0] != '\0') {
+        PlayMusicTrack(currentMusicPath, musicVolume);
+    }
+    else {
+        AudioEngine::FadeMusicVolume(musicVolume, PSX_MUSIC_FADE_MS);
+    }
 }

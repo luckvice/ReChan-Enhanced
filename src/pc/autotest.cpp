@@ -1,4 +1,5 @@
 #include "pc/autotest.h"
+#include "pc/audio.h"
 #include "ai/generator.h"
 #include "ai/player.h"
 #include "gen/ai.h"
@@ -6,6 +7,7 @@
 #include "gen/control.h"
 #include "gen/world.h"
 #include "gen/game.h"
+#include "gen/director.h"
 #include "gen/time.h"
 #include "p3d/context.h"
 #include "pddi/pddidev.h"
@@ -24,6 +26,7 @@
 
 #if defined(RC_PLATFORM_PSP)
 #include <malloc.h>
+#include <pspkernel.h>
 #include "pddi/psp/psprender.h"
 static u32 s_peakRamBytes = 0;
 static u32 s_peakGpuUs = 0;
@@ -42,6 +45,11 @@ static s32 s_frames = 300;
 static s32 s_fps = 60;
 static u32 s_heldButtons = 0;
 static std::string s_screenshotPath;
+static bool s_pauseTest = false;
+static u32 s_activeFrameButtons = 0;
+static s32 s_menuFrames = 0;
+static bool s_hasPaused = false;
+static bool s_hasUnpaused = false;
 
 static s32 s_playFrames = 0;
 static bool s_captureRequested = false;
@@ -175,6 +183,9 @@ void AutoTest_ParseArgs(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--screenshot") == 0 && hasValue) {
             s_screenshotPath = argv[++i];
         }
+        else if (std::strcmp(argv[i], "--pause-test") == 0) {
+            s_pauseTest = true;
+        }
     }
 
     if (!s_enabled) {
@@ -247,7 +258,7 @@ f32 AutoTest_GetFixedDeltaTime() {
 }
 
 u32 AutoTest_GetHeldButtons() {
-    return (s_enabled && s_playFrames > 0) ? s_heldButtons : 0;
+    return s_activeFrameButtons;
 }
 
 void AutoTest_Fail(int exitCode, const char* reason) {
@@ -269,15 +280,41 @@ bool AutoTest_Step(GameState state) {
         p3d::display->AddOverlayCallback(CaptureOverlay);
     }
 
+    s_activeFrameButtons = (s_enabled && s_playFrames > 0) ? s_heldButtons : 0;
+
     if (state != GameState::Play) {
         if (s_playFrames == 0 && Time::GetTimeInSeconds() - s_startTime > kReachGameplayTimeoutSec) {
             AutoTest_Fail(11, "never reached gameplay");
             return false;
         }
+        if (s_pauseTest && state == GameState::Menu) {
+            s_hasPaused = true;
+            ++s_menuFrames;
+            LOG_ALWAYS("[AutoTest] In Menu: frame %d musicVol=%.3f", s_menuFrames, AudioEngine::GetMusicVolume());
+            if (s_menuFrames >= 20 && s_menuFrames <= 25) {
+                LOG_ALWAYS("[AutoTest] Injecting UNPAUSE (Start) from Menu frame %d", s_menuFrames);
+                s_activeFrameButtons |= PsxPad::Start;
+            }
+        }
         return true;
     }
 
     ++s_playFrames;
+    if ((s_playFrames % 10) == 0) {
+        LOG_ALWAYS("[AutoTest] PlayFrame %d: isMusicPlaying=%d musicVol=%.3f", s_playFrames, AudioEngine::IsMusicPlaying() ? 1 : 0, AudioEngine::GetMusicVolume());
+    }
+
+    if (s_pauseTest) {
+        if (s_playFrames >= 60 && (!g_director || g_director->scriptState == 0) && !s_hasPaused) {
+            LOG_ALWAYS("[AutoTest] Injecting PAUSE (Start) at play frame %d (scriptState=%d)",
+                       s_playFrames, g_director ? g_director->scriptState : -1);
+            s_activeFrameButtons |= PsxPad::Start;
+        }
+        if (s_hasPaused && s_menuFrames > 0 && !s_hasUnpaused) {
+            s_hasUnpaused = true;
+            LOG_ALWAYS("[AutoTest] Resumed back to Play at frame %d!", s_playFrames);
+        }
+    }
 
 #if defined(RC_PLATFORM_PSP)
     struct mallinfo mi = mallinfo();
@@ -318,6 +355,18 @@ bool AutoTest_Step(GameState state) {
         return true;
     }
 
+    if (s_pauseTest) {
+        if (!s_hasPaused || !s_hasUnpaused) {
+            AutoTest_Fail(12, "pause test failed to pause or unpause");
+            return false;
+        }
+        if (AudioEngine::GetMusicVolume() <= 0.05f) {
+            AutoTest_Fail(13, "music did not resume after unpause");
+            return false;
+        }
+        LOG_ALWAYS("[AutoTest] Music resume verified successfully! volume=%.3f", AudioEngine::GetMusicVolume());
+    }
+
     LOG_ALWAYS("[AutoTest] Finished after %d gameplay frames", s_playFrames);
 
 #if defined(RC_PLATFORM_PSP)
@@ -348,6 +397,9 @@ bool AutoTest_Step(GameState state) {
 #endif
 
     s_finished = true;
+#if defined(RC_PLATFORM_PSP)
+    sceKernelExitGame();
+#endif
     return false;
 }
 
