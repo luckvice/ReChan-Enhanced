@@ -43,6 +43,7 @@
 #if defined(RC_PLATFORM_PSP)
 #include "pddi/psp/psprender.h"
 #include <pspkernel.h>
+#include <malloc.h>
 #endif
 #if defined(PSP_AUTOPLAY)
 #include "psp/psp_qa.h"
@@ -3076,48 +3077,77 @@ static void DrawPerformanceOverlay() {
     static u32 s_accumTimeUs = 0;
     static u32 s_displayedFps = 60;
     static u32 s_displayedFrametimeUs = 16666;
+    static u32 s_accumCpuPct = 0;
+    static u32 s_accumGpuPct = 0;
+    static u32 s_displayedCpuPct = 0;
+    static u32 s_displayedGpuPct = 0;
+
+    const float activeMs = g_frameProfile.logicMs + g_frameProfile.drawSubmitMs;
+    const float targetMs = (g_time && g_time->targetFPS > 0) ? (1000.0f / static_cast<float>(g_time->targetFPS)) : 16.666f;
+    int curCpuPct = (targetMs > 0.0f) ? static_cast<int>((activeMs / targetMs) * 100.0f + 0.5f) : 0;
+    if (curCpuPct > 100) curCpuPct = 100;
+    if (curCpuPct < 0) curCpuPct = 0;
+
+    const u32 gpuUs = PspGetGpuDurationUs();
+    const float gpuMs = static_cast<float>(gpuUs) / 1000.0f;
+    int curGpuPct = (targetMs > 0.0f) ? static_cast<int>((gpuMs / targetMs) * 100.0f + 0.5f) : 0;
+    if (curGpuPct > 100) curGpuPct = 100;
+    if (curGpuPct < 0) curGpuPct = 0;
 
     if (s_lastUs != 0) {
         const u32 deltaUs = nowUs - s_lastUs;
         s_accumTimeUs += deltaUs;
         s_accumFrames++;
+        s_accumCpuPct += static_cast<u32>(curCpuPct);
+        s_accumGpuPct += static_cast<u32>(curGpuPct);
         if (s_accumTimeUs >= 250000 || s_accumFrames >= 15) {
             if (s_accumTimeUs > 0) {
                 s_displayedFps = (s_accumFrames * 1000000u) / s_accumTimeUs;
                 s_displayedFrametimeUs = s_accumTimeUs / s_accumFrames;
             }
+            if (s_accumFrames > 0) {
+                s_displayedCpuPct = s_accumCpuPct / s_accumFrames;
+                s_displayedGpuPct = s_accumGpuPct / s_accumFrames;
+            }
             s_accumFrames = 0;
             s_accumTimeUs = 0;
+            s_accumCpuPct = 0;
+            s_accumGpuPct = 0;
         }
     }
     s_lastUs = nowUs;
 
-    char osd[112];
+    char osd[128];
     const float ms = static_cast<float>(s_displayedFrametimeUs) / 1000.0f;
 
     if (mode == PspPerfDisplay_Fps) {
         std::snprintf(osd, sizeof(osd), "%lu FPS (%.1f ms)",
                       static_cast<unsigned long>(s_displayedFps), ms);
     } else {
-        const float activeMs = g_frameProfile.logicMs + g_frameProfile.drawSubmitMs;
-        const float targetMs = (g_time && g_time->targetFPS > 0) ? (1000.0f / static_cast<float>(g_time->targetFPS)) : 16.666f;
-        int cpuPct = (targetMs > 0.0f) ? static_cast<int>((activeMs / targetMs) * 100.0f + 0.5f) : 0;
-        if (cpuPct > 100) cpuPct = 100;
-        if (cpuPct < 0) cpuPct = 0;
-
 #if defined(RC_PLATFORM_PSP)
         u32 totalVram = 0, usedVram = 0, freeVram = 0;
         PspGetVramStats(&totalVram, &usedVram, &freeVram);
         const float vramMb = static_cast<float>(usedVram) / (1024.0f * 1024.0f);
         const float vramTotalMb = static_cast<float>(totalVram) / (1024.0f * 1024.0f);
-        const size_t freeRam = sceKernelTotalFreeMemSize();
-        const float ramMb = static_cast<float>(freeRam) / (1024.0f * 1024.0f);
+        const u32 freeVramKb = freeVram / 1024u;
 
-        std::snprintf(osd, sizeof(osd), "%lu FPS (%.1fms)  CPU: %d%%\nVRAM: %.2f/%.2fM  RAM: %.1fM",
-                      static_cast<unsigned long>(s_displayedFps), ms, cpuPct, vramMb, vramTotalMb, ramMb);
+        struct mallinfo mi = mallinfo();
+        const float ramUsedMb = static_cast<float>(mi.uordblks) / (1024.0f * 1024.0f);
+        const float ramTotalMb = (mi.arena > 0) ? (static_cast<float>(mi.arena) / (1024.0f * 1024.0f)) : 24.0f;
+
+        std::snprintf(osd, sizeof(osd),
+                      "%lu FPS (%.1fms)  CPU: %u%%  GPU: %u%%\nRAM: %.1f/%.1fM  VRAM: %.2f/%.2fM (%uK livre)",
+                      static_cast<unsigned long>(s_displayedFps), ms,
+                      static_cast<unsigned>(s_displayedCpuPct),
+                      static_cast<unsigned>(s_displayedGpuPct),
+                      ramUsedMb, ramTotalMb, vramMb, vramTotalMb,
+                      static_cast<unsigned>(freeVramKb));
 #else
-        std::snprintf(osd, sizeof(osd), "%lu FPS (%.1fms)  CPU: %d%%",
-                      static_cast<unsigned long>(s_displayedFps), ms, cpuPct);
+        std::snprintf(osd, sizeof(osd),
+                      "%lu FPS (%.1fms)  CPU: %u%%  GPU: %u%%",
+                      static_cast<unsigned long>(s_displayedFps), ms,
+                      static_cast<unsigned>(s_displayedCpuPct),
+                      static_cast<unsigned>(s_displayedGpuPct));
 #endif
     }
 

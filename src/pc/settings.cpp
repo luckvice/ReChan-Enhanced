@@ -785,4 +785,8 @@ void PspSetPerfDisplayMode(s32 mode) {
     }
     s_perfDisplayMode = mode;
 }
+
+u32 PspGetGpuDurationUs() {
+    return static_cast<u32>(g_frameProfile.drawSubmitMs * 1000.0f);
+}
 #endif

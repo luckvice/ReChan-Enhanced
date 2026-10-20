@@ -36,5 +36,6 @@ enum PspPerfDisplayMode : s32 {
 
 s32 PspGetPerfDisplayMode();
 void PspSetPerfDisplayMode(s32 mode);
+u32 PspGetGpuDurationUs();
 
 static constexpr const char* SETTINGS_PATH = apppaths::kSettingsPath;

@@ -755,6 +755,7 @@ private:
 };
 
 void PspGetVramStats(u32* outTotalBytes, u32* outUsedBytes, u32* outFreeBytes);
+u32 PspGetGpuDurationUs();
 
 class pspDevice final : public pddiDevice {
 public:

@@ -359,6 +359,8 @@ alignas(16) DisplayListStorage g_displayListStorage = {};
 StaticPspVram g_staticVram = {};
 pspContext* g_activeContext = nullptr;
 pspShader* g_activeShader = nullptr;
+static u32 s_geFrameStartUs = 0;
+static u32 s_lastGeDurationUs = 0;
 
 // Relative eDRAM offset of the colour buffer the GE is drawing.
 static std::uintptr_t DrawFramebufferOffset() {
@@ -2035,6 +2037,9 @@ void pspContext::BeginFrame() {
 #endif
     // First GE command of the frame: the draw target must be off screen.
     WaitForSwapVblank();
+#if defined(RC_PLATFORM_PSP)
+    s_geFrameStartUs = sceKernelGetSystemTimeLow();
+#endif
     sceGuStart(GU_DIRECT, g_displayListStorage.words);
 #if defined(PSP_TRIPLE_BUFFER)
     BindDrawFramebuffer();
@@ -2335,6 +2340,12 @@ void pspContext::FinishList() {
     const u32 syncStart = sceKernelGetSystemTimeLow();
 #endif
     sceGuSync(0, 0);
+#if defined(RC_PLATFORM_PSP)
+    const u32 geSyncEnd = sceKernelGetSystemTimeLow();
+    if (s_geFrameStartUs != 0 && geSyncEnd >= s_geFrameStartUs) {
+        s_lastGeDurationUs = geSyncEnd - s_geFrameStartUs;
+    }
+#endif
 #if defined(PSP_PERF_TELEMETRY)
     PspPerf::CountRenderer(PspPerf::RendererCounter::GeSyncUs,
         sceKernelGetSystemTimeLow() - syncStart);
@@ -4632,6 +4643,10 @@ void PspGetVramStats(u32* outTotalBytes, u32* outUsedBytes, u32* outFreeBytes) {
     if (outTotalBytes) *outTotalBytes = total;
     if (outUsedBytes) *outUsedBytes = used;
     if (outFreeBytes) *outFreeBytes = (total > used) ? (total - used) : 0u;
+}
+
+u32 PspGetGpuDurationUs() {
+    return s_lastGeDurationUs;
 }
 
 pddiDevice* pddiCreate() {
