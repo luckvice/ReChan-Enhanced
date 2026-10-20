@@ -4626,6 +4626,14 @@ void pspContext::DrawPrimBuffer(pddiPrimBuffer* base, u32 indexOffset, u32 index
 #endif
 }
 
+void PspGetVramStats(u32* outTotalBytes, u32* outUsedBytes, u32* outFreeBytes) {
+    const u32 total = static_cast<u32>(kEdramBytes);
+    const u32 used = g_staticVram.allocatedBytes;
+    if (outTotalBytes) *outTotalBytes = total;
+    if (outUsedBytes) *outUsedBytes = used;
+    if (outFreeBytes) *outFreeBytes = (total > used) ? (total - used) : 0u;
+}
+
 pddiDevice* pddiCreate() {
     return new pspDevice();
 }

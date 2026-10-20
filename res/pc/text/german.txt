@@ -160,6 +160,18 @@ Näher
 [FE_CAM3]
 Sehr nah
 
+[FE_PERF]
+Leistung:
+
+[FE_POFF]
+Aus
+
+[FE_PFPS]
+FPS und Latenz
+
+[FE_PFULL]
+Komplett
+
 [FE_CR_AUTHOR]
 Autor
 

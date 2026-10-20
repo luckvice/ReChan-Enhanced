@@ -160,6 +160,18 @@ Más cercana
 [FE_CAM3]
 Muy cercana
 
+[FE_PERF]
+Rendimiento:
+
+[FE_POFF]
+Desactivado
+
+[FE_PFPS]
+FPS y Latencia
+
+[FE_PFULL]
+Completo
+
 [FE_CR_AUTHOR]
 Autor
 

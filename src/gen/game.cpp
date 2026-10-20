@@ -39,8 +39,10 @@
 #include "pc/tim.h"
 #include "p3d/input.h"
 #include "p3d/context.h"
+#include <chrono>
 #if defined(RC_PLATFORM_PSP)
 #include "pddi/psp/psprender.h"
+#include <pspkernel.h>
 #endif
 #if defined(PSP_AUTOPLAY)
 #include "psp/psp_qa.h"
@@ -3055,7 +3057,92 @@ void Game::PlayFadeInHandlerCB(Handler*) {
 }
 #endif
 
+static void DrawPerformanceOverlay() {
+    const s32 mode = PspGetPerfDisplayMode();
+    if (mode == PspPerfDisplay_Off || !g_textManager) {
+        return;
+    }
+
+#if defined(RC_PLATFORM_PSP)
+    const u32 nowUs = sceKernelGetSystemTimeLow();
+#else
+    static auto s_epoch = std::chrono::steady_clock::now();
+    const u32 nowUs = static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - s_epoch).count());
+#endif
+
+    static u32 s_lastUs = 0;
+    static u32 s_accumFrames = 0;
+    static u32 s_accumTimeUs = 0;
+    static u32 s_displayedFps = 60;
+    static u32 s_displayedFrametimeUs = 16666;
+
+    if (s_lastUs != 0) {
+        const u32 deltaUs = nowUs - s_lastUs;
+        s_accumTimeUs += deltaUs;
+        s_accumFrames++;
+        if (s_accumTimeUs >= 250000 || s_accumFrames >= 15) {
+            if (s_accumTimeUs > 0) {
+                s_displayedFps = (s_accumFrames * 1000000u) / s_accumTimeUs;
+                s_displayedFrametimeUs = s_accumTimeUs / s_accumFrames;
+            }
+            s_accumFrames = 0;
+            s_accumTimeUs = 0;
+        }
+    }
+    s_lastUs = nowUs;
+
+    char osd[112];
+    const float ms = static_cast<float>(s_displayedFrametimeUs) / 1000.0f;
+
+    if (mode == PspPerfDisplay_Fps) {
+        std::snprintf(osd, sizeof(osd), "%lu FPS  %.1f ms",
+                      static_cast<unsigned long>(s_displayedFps), ms);
+    } else {
+        const float activeMs = g_frameProfile.logicMs + g_frameProfile.drawSubmitMs;
+        const float targetMs = (g_time && g_time->targetFPS > 0) ? (1000.0f / static_cast<float>(g_time->targetFPS)) : 16.666f;
+        int cpuPct = (targetMs > 0.0f) ? static_cast<int>((activeMs / targetMs) * 100.0f + 0.5f) : 0;
+        if (cpuPct > 100) cpuPct = 100;
+        if (cpuPct < 0) cpuPct = 0;
+
+#if defined(RC_PLATFORM_PSP)
+        u32 totalVram = 0, usedVram = 0, freeVram = 0;
+        PspGetVramStats(&totalVram, &usedVram, &freeVram);
+        const float vramMb = static_cast<float>(usedVram) / (1024.0f * 1024.0f);
+        const float vramTotalMb = static_cast<float>(totalVram) / (1024.0f * 1024.0f);
+        const size_t freeRam = sceKernelTotalFreeMemSize();
+        const float ramMb = static_cast<float>(freeRam) / (1024.0f * 1024.0f);
+
+        std::snprintf(osd, sizeof(osd), "%lu FPS %.1fms | CPU %d%% | VRAM %.1f/%.1fM | RAM %.1fM",
+                      static_cast<unsigned long>(s_displayedFps), ms, cpuPct, vramMb, vramTotalMb, ramMb);
+#else
+        std::snprintf(osd, sizeof(osd), "%lu FPS %.1fms | CPU %d%%",
+                      static_cast<unsigned long>(s_displayedFps), ms, cpuPct);
+#endif
+    }
+
+    g_textManager->SetFontByName("Legal");
+    g_textManager->SetScale(SCREEN_SCALE_Y(0.12f), SCREEN_SCALE_Y(0.12f));
+    g_textManager->SetAlignment(TextAlign_Left);
+    g_textManager->SetWrapWidth(0.0f);
+    g_textManager->SetLineSpacing(0);
+    g_textManager->SetPromptsEnabled(false);
+    g_textManager->SetShadow(true);
+    g_textManager->SetOutline(true);
+
+    if (s_displayedFps >= 55) {
+        g_textManager->SetColor(0, 255, 128);
+    } else if (s_displayedFps >= 45) {
+        g_textManager->SetColor(255, 230, 0);
+    } else {
+        g_textManager->SetColor(255, 80, 80);
+    }
+
+    g_textManager->PrintString(osd, HudX(8.0f), SCREEN_HEIGHT - HudY(10.0f));
+}
+
 void DrawDebugInfo() {
+    DrawPerformanceOverlay();
 #ifdef DEBUG
     if (g_textManager) {
         g_textManager->SetFontByName("Legal");

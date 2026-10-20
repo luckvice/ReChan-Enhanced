@@ -27,10 +27,12 @@ static const char kCinemaKey[] = "cinema=";
 static const char kCameraKey[] = "camera=";
 static const char kLanguageKey[] = "language=";
 static const char kSetupKey[] = "setup=";
+static const char kPerfKey[] = "perf=";
 
 static bool s_cinemaMode = false;
 static s32 s_cameraDistance = 0;
 static bool s_setupDone = false;
+static s32 s_perfDisplayMode = PspPerfDisplay_Off;
 
 // Eye-to-look-at distance per camera option, as a 16.16 fraction of the
 // level's own framing: original, then 80%, 65% and 50%.
@@ -45,6 +47,7 @@ static s32 s_savedCinema = -1;
 static s32 s_savedCamera = -1;
 static s32 s_savedLanguage = -1;
 static s32 s_savedSetup = -1;
+static s32 s_savedPerf = -1;
 
 // Before the first-boot choice: the PSP's own system language when the game
 // has it, English otherwise.
@@ -98,12 +101,24 @@ void PspSetCinemaMode(bool enabled) {
     }
 }
 
+s32 PspGetPerfDisplayMode() {
+    return s_perfDisplayMode;
+}
+
+void PspSetPerfDisplayMode(s32 mode) {
+    if (mode < 0 || mode >= PspPerfDisplay_Count) {
+        mode = PspPerfDisplay_Off;
+    }
+    s_perfDisplayMode = mode;
+}
+
 bool GameSettings::Load(const char*) {
     s32 hudStyle = HudStyle_Modern;
     s32 cinema = 0;
     s32 camera = 0;
     s32 language = SystemLanguage();
     s32 setup = 0;
+    s32 perf = PspPerfDisplay_Off;
 
     ccFile file;
     if (file.Open(kPspSettingsPath, ccFile::OPEN_READ)) {
@@ -132,6 +147,9 @@ bool GameSettings::Load(const char*) {
             else if (std::strncmp(line, kSetupKey, sizeof(kSetupKey) - 1) == 0) {
                 setup = (std::atoi(line + sizeof(kSetupKey) - 1) != 0) ? 1 : 0;
             }
+            else if (std::strncmp(line, kPerfKey, sizeof(kPerfKey) - 1) == 0) {
+                perf = (s32)std::atoi(line + sizeof(kPerfKey) - 1);
+            }
             line = std::strchr(line, '\n');
             if (line) {
                 line++;
@@ -142,6 +160,7 @@ bool GameSettings::Load(const char*) {
         s_savedCamera = camera;
         s_savedLanguage = language;
         s_savedSetup = setup;
+        s_savedPerf = perf;
     }
 
     if (language < 0 || language >= (s32)NumLanguages) language = (s32)LangEnglish;
@@ -150,6 +169,7 @@ bool GameSettings::Load(const char*) {
     SetHudStyle(hudStyle);
     PspSetCinemaMode(cinema != 0);
     PspSetCameraDistance(camera);
+    PspSetPerfDisplayMode(perf);
     return true;
 }
 
@@ -159,17 +179,18 @@ bool GameSettings::Save(const char*) {
     const s32 camera = s_cameraDistance;
     const s32 language = (s32)g_customText.GetLanguage();
     const s32 setup = s_setupDone ? 1 : 0;
+    const s32 perf = s_perfDisplayMode;
     if (hudStyle == s_savedHudStyle && cinema == s_savedCinema && camera == s_savedCamera
-        && language == s_savedLanguage && setup == s_savedSetup) {
+        && language == s_savedLanguage && setup == s_savedSetup && perf == s_savedPerf) {
         return true;
     }
 
     p3d::io::CreateDirectories(apppaths::kUserFilesDir);
 
-    char text[128] = {};
-    const s32 length = (s32)std::snprintf(text, sizeof(text), "%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n",
+    char text[160] = {};
+    const s32 length = (s32)std::snprintf(text, sizeof(text), "%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n",
         kHudStyleKey, (int)hudStyle, kCinemaKey, (int)cinema, kCameraKey, (int)camera,
-        kLanguageKey, (int)language, kSetupKey, (int)setup);
+        kLanguageKey, (int)language, kSetupKey, (int)setup, kPerfKey, (int)perf);
 
     ccFile file;
     if (!file.Open(kPspSettingsPath, ccFile::OPEN_WRITE)) {
@@ -186,5 +207,6 @@ bool GameSettings::Save(const char*) {
     s_savedCamera = camera;
     s_savedLanguage = language;
     s_savedSetup = setup;
+    s_savedPerf = perf;
     return true;
 }

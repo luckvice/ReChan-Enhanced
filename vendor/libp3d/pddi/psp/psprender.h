@@ -754,6 +754,8 @@ private:
     void Draw2D(const PspVertex* vertices, int count, pddiTexture* texture);
 };
 
+void PspGetVramStats(u32* outTotalBytes, u32* outUsedBytes, u32* outFreeBytes);
+
 class pspDevice final : public pddiDevice {
 public:
     pddiDisplay* NewDisplay() override { display = new pspDisplay(); return display; }

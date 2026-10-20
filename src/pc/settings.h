@@ -26,4 +26,15 @@ bool PspIsFirstBootSetupPending();
 void PspFinishFirstBootSetup();
 #endif
 
+// Performance OSD display modes
+enum PspPerfDisplayMode : s32 {
+    PspPerfDisplay_Off = 0,
+    PspPerfDisplay_Fps,       // "60 FPS  16.6 ms"
+    PspPerfDisplay_Full,      // "60 FPS  16.6 ms | CPU 24% | VRAM 1.5/2.0 MB | RAM 18.2 MB"
+    PspPerfDisplay_Count
+};
+
+s32 PspGetPerfDisplayMode();
+void PspSetPerfDisplayMode(s32 mode);
+
 static constexpr const char* SETTINGS_PATH = apppaths::kSettingsPath;

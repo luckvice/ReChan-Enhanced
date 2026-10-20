@@ -890,6 +890,7 @@ void feCustomMenuMgr::BuildPages() {
         List("FE_HUDS", EntryBinding_HudStyle, 1, 0, (s32)HudStyle_Count - 1),
         Toggle("FE_CINE", EntryBinding_CinemaMode),
         List("FE_CAM", EntryBinding_CameraDistance, 1, 0, kPspCameraDistanceCount - 1),
+        List("FE_PERF", EntryBinding_PerfDisplay, 1, 0, (s32)PspPerfDisplay_Count - 1),
 #endif
         Button("FE_BCK", EntryEvent_Back),
                });
@@ -3412,7 +3413,8 @@ void feCustomMenuMgr::Adjust(s32 dir) {
             return;
         }
 
-        if (e->binding == EntryBinding_HudStyle || e->binding == EntryBinding_CameraDistance) {
+        if (e->binding == EntryBinding_HudStyle || e->binding == EntryBinding_CameraDistance
+            || e->binding == EntryBinding_PerfDisplay) {
             const s32 v = WrapStepValue(GetBoundValue(*e), e->step, e->lo, e->hi, dir);
             ApplyValue(*e, v);
             return;
@@ -3484,6 +3486,7 @@ s32 feCustomMenuMgr::GetBoundValue(const Entry& e) const {
 #if defined(RC_PLATFORM_PSP)
         case EntryBinding_CinemaMode: return PspIsCinemaMode() ? 1 : 0;
         case EntryBinding_CameraDistance: return PspGetCameraDistance();
+        case EntryBinding_PerfDisplay: return PspGetPerfDisplayMode();
 #endif
         case EntryBinding_DisplayResolution: return g_display ? g_display->GetResolutionIndex() : 0;
         case EntryBinding_DisplayScreenMode: return g_display ? g_display->GetScreenMode() : Display::GetDefaultScreenMode();
@@ -3589,6 +3592,10 @@ void feCustomMenuMgr::ApplyValue(const Entry& e, s32 v) {
     }
     else if (e.binding == EntryBinding_CameraDistance) {
         PspSetCameraDistance(v);
+    }
+    else if (e.binding == EntryBinding_PerfDisplay) {
+        PspSetPerfDisplayMode(v);
+        g_settings.Save(nullptr);
     }
 #endif
     else if (e.binding == EntryBinding_ControllerPromptStyle) {
@@ -6421,6 +6428,25 @@ void feCustomMenuMgr::RenderCurrentPage() {
                                             selected ? selectedColor.GetGreen8() : normalColor.GetGreen8(),
                                             selected ? selectedColor.GetBlue8() : normalColor.GetBlue8());
                     g_textManager->PrintString(cameraText, valueScreenX, rowScreenY);
+                }
+                else if (item.binding == EntryBinding_PerfDisplay) {
+                    static const char* kPerfTokens[PspPerfDisplay_Count] = {
+                        "FE_POFF", "FE_PFPS", "FE_PFULL"
+                    };
+                    static const char* kPerfFallbacks[PspPerfDisplay_Count] = {
+                        "Off", "FPS & Latency", "Complete"
+                    };
+                    const s32 mode = GetBoundValue(item);
+                    const char* perfText = (mode >= 0 && mode < PspPerfDisplay_Count)
+                        ? Localize(kPerfTokens[mode]) : nullptr;
+                    if (!perfText) {
+                        perfText = (mode >= 0 && mode < PspPerfDisplay_Count) ? kPerfFallbacks[mode] : "";
+                    }
+                    g_textManager->SetAlignment(TextAlign_Right);
+                    g_textManager->SetColor(selected ? selectedColor.GetRed8() : normalColor.GetRed8(),
+                                            selected ? selectedColor.GetGreen8() : normalColor.GetGreen8(),
+                                            selected ? selectedColor.GetBlue8() : normalColor.GetBlue8());
+                    g_textManager->PrintString(perfText, valueScreenX, rowScreenY);
                 }
 #endif
                 else if (item.binding == EntryBinding_HudStyle) {

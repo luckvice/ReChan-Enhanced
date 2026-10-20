@@ -157,6 +157,18 @@ Mais próxima
 [FE_CAM3]
 Muito próxima
 
+[FE_PERF]
+Desempenho:
+
+[FE_POFF]
+Desligado
+
+[FE_PFPS]
+FPS e Latência
+
+[FE_PFULL]
+Completo
+
 [FE_CR_AUTHOR]
 Autor
 

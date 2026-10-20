@@ -771,3 +771,18 @@ bool GameSettings::Save(const char* path) {
     std::string text = BuildIniText();
     return WriteWholeFile(path, text);
 }
+
+#if !defined(RC_PLATFORM_PSP)
+static s32 s_perfDisplayMode = PspPerfDisplay_Off;
+
+s32 PspGetPerfDisplayMode() {
+    return s_perfDisplayMode;
+}
+
+void PspSetPerfDisplayMode(s32 mode) {
+    if (mode < 0 || mode >= PspPerfDisplay_Count) {
+        mode = PspPerfDisplay_Off;
+    }
+    s_perfDisplayMode = mode;
+}
+#endif

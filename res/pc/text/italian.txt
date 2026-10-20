@@ -160,6 +160,18 @@ Più vicina
 [FE_CAM3]
 Molto vicina
 
+[FE_PERF]
+Prestazioni:
+
+[FE_POFF]
+Disattivato
+
+[FE_PFPS]
+FPS e Latenza
+
+[FE_PFULL]
+Completo
+
 [FE_CR_AUTHOR]
 Autore
 

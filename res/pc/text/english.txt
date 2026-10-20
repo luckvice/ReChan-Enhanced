@@ -160,6 +160,18 @@ Closer
 [FE_CAM3]
 Closest
 
+[FE_PERF]
+Performance Display:
+
+[FE_POFF]
+Off
+
+[FE_PFPS]
+FPS & Latency
+
+[FE_PFULL]
+Complete
+
 [FE_CR_AUTHOR]
 Author
 
