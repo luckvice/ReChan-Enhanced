@@ -19,7 +19,7 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 > **Special Thanks & Recognition**: Massive thanks to the original creator ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) and all contributors to the original reverse-engineering codebase. The purpose of this fork is to elevate the *Jackie Chan Stuntmaster* experience to its highest level of fidelity and performance.
 
 > [!IMPORTANT]
-> **Official Project Status**: We are officially in **Beta 4**! Current efforts are focused on consolidating stability, performance, and overall polish across all targets and the core engine, preparing the ground for the upcoming **RC1 (Release Candidate 1)** release.
+> **Official Project Status**: We are officially in **Beta 4.1**! Current efforts are focused on consolidating stability, performance, and overall polish across all targets and the core engine, preparing the ground for the upcoming **RC1 (Release Candidate 1)** release.
 
 ### To use this project:
 * You **must own a legal copy** of *Jackie Chan Stuntmaster* (SLUS-00684).
@@ -27,7 +27,7 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 * All rights to the original game, assets and intellectual property belong to their respective owners.
 
 <br>
-<img src="https://img.shields.io/badge/milestone-Beta%204-orange?style=flat-square" />
+<img src="https://img.shields.io/badge/milestone-Beta%204.1-orange?style=flat-square" />
 <img src="https://img.shields.io/badge/next-RC1%20Soon-yellow?style=flat-square" />
 <img src="https://img.shields.io/badge/optimized%20by-Luckvice-blue?style=flat-square" />
 <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
@@ -42,7 +42,7 @@ This fork by **Luckvice** aims to bring an optimized, enhanced, and definitive g
 ## About
 * Target version: **SLUS-00684** (NTSC-U)
 * Development started: **October 2025**
-* Current status: **Beta 4** (RC1 coming soon)
+* Current status: **Beta 4.1** (RC1 coming soon)
 
 The project focuses on:
 * Reconstructing game logic and original systems
@@ -105,7 +105,7 @@ the full feature lists of each edition.
 
 ## Platform editions
 
-### PSP — *RE:Chan HD Edition* (Beta 4 — RC1 coming soon)
+### PSP — *RE:Chan HD Edition* (Beta 4.1 — RC1 coming soon)
 
 <p align="center">
   <img src="res/screenshots_psp/xmb.png" width="48%" alt="PSP XMB Interface & Artwork">
@@ -140,7 +140,7 @@ top of the base game:
 
 Requirements: Any PSP model (PSP-1000 Fat, PSP-2000 Slim, PSP-3000 Brite, or PSP Go) with custom firmware or HEN, an
 NTSC-U (SLUS-00684) disc image, and ~1.3 GB free during install (~600 MB
-after). Install package and full notes: `dist/psp-release/` (Beta 4).
+after). Install package and full notes: `dist/psp-release/` (Beta 4.1).
 
 ### macOS — Metal Edition
 

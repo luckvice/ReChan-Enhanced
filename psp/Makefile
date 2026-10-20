@@ -3,7 +3,7 @@ BUILD_MODE ?= release
 
 # Release name shown in the XMB; the title-screen badge is drawn by
 # scripts/make_psp_edition_badge.py.
-RECHAN_PSP_VERSION ?= Beta 4
+RECHAN_PSP_VERSION ?= Beta 4.1
 PSP_EBOOT_TITLE = Re:Chan HD Edition $(RECHAN_PSP_VERSION)
 PSP_EBOOT_ICON = ICON0.PNG
 PSP_EBOOT_PIC1 = PIC1.PNG
