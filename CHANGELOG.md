@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.0-rc1_PSP] - 2026-10-20
+
+### Added
+
+- **PSP-1000 (Fat) 24 MB RAM support**:
+  - Native partition detection using `sceKernelMaxFreeMemSize()` instead of exploratory arena allocations.
+  - Dynamic release of title screen and frontend textures upon entering gameplay, freeing ~2 MB of RAM.
+  - Peak gameplay RAM constrained to 15.05–16.61 MB, well within the 24 MB user partition budget.
+  - Updated title screen badge to **PSP EDITION RC 1**.
+
+### Fixed
+
+- **Audio pause / unpause integrity**:
+  - Implemented `PauseMusic()` and `ResumeMusic()` across native PSP and PC backends to freeze and resume music streaming without drift or stream death.
+  - Preserved multi-song track indexing (`currentMusicSong`) for flawless pause/resume behavior in the Hub.
+  - Eliminated audio worker redundant loop and semaphore contention, resolving menu music interruption and CPU starvation.
+- **GE GPU load measurement**:
+  - Corrected GPU rasterization time tracking on 2D backdrop draws and idle frames, removing false 100% readings in the pause menu (actual menu load: ~2.7%, average gameplay load: ~19.7%).
+
 ## [1.1.0] - 2026-09-17
 
 ### Added

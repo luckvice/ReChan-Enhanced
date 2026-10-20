@@ -6,8 +6,8 @@ PSP, baseado no ReChan. Este pacote NÃO contém nenhum arquivo do jogo: o PSP
 extrai o que precisa da imagem do seu próprio disco.
 
 REQUISITOS
-- PSP-2000, PSP-3000 ou PSP Go com custom firmware ou HEN que rode homebrew.
-  Testado no PSP-3000. O PSP-1000 não tem memória suficiente.
+- Qualquer modelo de PSP (PSP-1000 Fat, PSP-2000 Slim, PSP-3000 Brite ou
+  PSP Go) com custom firmware ou HEN que rode homebrew.
 - Imagem do disco americano (NTSC-U, SLUS-00684), de preferência .bin.
   Do par .bin/.cue copie só o .bin. Uma .iso com 2048 bytes por setor não
   guarda os vídeos; a versão PAL e o EBOOT.PBP de PS1 não servem.

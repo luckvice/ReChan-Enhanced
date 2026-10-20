@@ -2389,8 +2389,8 @@ void pspContext::FinishList() {
     const u32 geSyncEnd = sceKernelGetSystemTimeLow();
     if (s_geActiveStarted && geSyncEnd >= s_geActiveStartUs) {
         s_lastGeDurationUs = geSyncEnd - s_geActiveStartUs;
-    } else if (s_geFrameStartUs != 0 && geSyncEnd >= s_geFrameStartUs) {
-        s_lastGeDurationUs = geSyncEnd - s_geFrameStartUs;
+    } else {
+        s_lastGeDurationUs = 0;
     }
 #endif
 #if defined(PSP_PERF_TELEMETRY)
@@ -2557,6 +2557,7 @@ void pspContext::ClearDepthNow() {
 // (texture-cache friendly), with blending/filtering off. Through-mode UVs are
 // texels, so TexScale/TexOffset do not apply.
 void pspContext::DrawScreenCopy(u32 sourceFormat, const void* sourceTexture) {
+    MarkGeActive();
     struct CopyVertex { u16 u, v; s16 x, y, z; };
     constexpr int kStripWidth = 64;
     constexpr int kStrips = (kWidth + kStripWidth - 1) / kStripWidth;
@@ -2613,6 +2614,7 @@ bool pspContext::CapturePauseBackdrop() {
 
 bool pspContext::DrawPauseBackdrop() {
     if (!pauseBackdropValid || !listOpen) return false;
+    MarkGeActive();
     EnsureListSpace(256u);
     Setup2DState();
     const auto edramBase = reinterpret_cast<std::uintptr_t>(sceGeEdramGetAddr());

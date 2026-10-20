@@ -238,6 +238,7 @@ static int MusicWorkerEntry(SceSize, void*) {
         const u32 pair = g_musicStream.requestedPair.load(std::memory_order_acquire);
         if (pair == kInvalidPair || pair >= g_musicStream.pairCount) continue;
         if (g_musicStream.readyPair.load(std::memory_order_acquire) == pair) continue;
+        if (g_musicStream.currentPair == pair) continue;
 
         // With two buffers, one is being consumed and the other is either free
         // or already queued for the callback. Never overwrite either one.
@@ -334,9 +335,6 @@ static bool PromoteMusicPair(u32 pair) {
     g_musicStream.currentPair = pair;
     g_musicStream.readyPair.store(kInvalidPair, std::memory_order_release);
     g_musicStream.readyBuffer.store(kInvalidBuffer, std::memory_order_release);
-    if (g_musicStream.requestSema >= 0) {
-        sceKernelSignalSema(g_musicStream.requestSema, 1);
-    }
     return true;
 }
 

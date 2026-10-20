@@ -290,7 +290,11 @@ bool AutoTest_Step(GameState state) {
         if (s_pauseTest && state == GameState::Menu) {
             s_hasPaused = true;
             ++s_menuFrames;
+#if defined(RC_PLATFORM_PSP)
+            LOG_ALWAYS("[AutoTest] In Menu: frame %d musicVol=%.3f gpuUs=%u", s_menuFrames, AudioEngine::GetMusicVolume(), PspGetGpuDurationUs());
+#else
             LOG_ALWAYS("[AutoTest] In Menu: frame %d musicVol=%.3f", s_menuFrames, AudioEngine::GetMusicVolume());
+#endif
             if (s_menuFrames >= 20 && s_menuFrames <= 25) {
                 LOG_ALWAYS("[AutoTest] Injecting UNPAUSE (Start) from Menu frame %d", s_menuFrames);
                 s_activeFrameButtons |= PsxPad::Start;

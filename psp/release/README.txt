@@ -6,8 +6,8 @@ based on ReChan. This package does NOT contain any game files: the PSP
 extracts what it needs from the image of your own disc.
 
 REQUIREMENTS
-- PSP-2000, PSP-3000 or PSP Go with a custom firmware or HEN that runs
-  homebrew. Tested on a PSP-3000. The PSP-1000 does not have enough memory.
+- Any PSP model (PSP-1000 Fat, PSP-2000 Slim, PSP-3000 Brite, or PSP Go)
+  with custom firmware or HEN that runs homebrew.
 - An image of the US disc (NTSC-U, SLUS-00684), preferably a .bin.
   From a .bin/.cue pair copy only the .bin. An .iso with 2048-byte sectors
   does not keep the movies; the PAL release and PS1 EBOOT.PBP files do not
