@@ -482,23 +482,14 @@ int main() {
     require(mockPlayer->homePos.x == ladder.pos.x && mockPlayer->homePos.z == ladder.pos.z,
             "Jackie XZ must align to ladder upon grab");
 
-    // Test 7a2: Grab with D-pad UP walking into ladder
+    // Test 7a2: Grab with R1 button on PSP
     mockPlayer->pos = { -12200, 9472, 26496 };
     mockPlayer->homePos = mockPlayer->pos;
     mockPlayer->actionState = 0;
-    mockPlayer->commandBits = (1 << 2); // D-pad UP
+    mockPlayer->commandBits = (1 << 15); // R1 grab button
     ladder.HandleHumanoidCollision(mockPlayer);
     require(mockPlayer->actionState == AS_LADDER_CLIMB_UP,
-            "Jackie must grab ladder with D-pad UP");
-
-    // Test 7a3: Grab during jumping into ladder
-    mockPlayer->pos = { -12300, 9800, 26496 };
-    mockPlayer->homePos = mockPlayer->pos;
-    mockPlayer->actionState = AS_JUMP;
-    mockPlayer->commandBits = 0;
-    ladder.HandleHumanoidCollision(mockPlayer);
-    require(mockPlayer->actionState == AS_LADDER_CLIMB_UP,
-            "Jackie must grab ladder while jumping into it");
+            "Jackie must grab ladder with R1 button");
 
     // Test 7b: Player transitions to AS_LADDER_CLIMBING (27) at bottom (pos.y = 10368)
     mockPlayer->actionState = AS_LADDER_CLIMBING;
@@ -519,6 +510,63 @@ int main() {
             "Ladder cutscene must trigger when player climbs to hatchYTrigger (11000)");
     require(g_director->codeSnipPtr == Director::GetNISLadder1Script(),
             "Director must receive NIS ladder script on cutscene trigger");
+
+    // 8. Test Hub Roof Ladder (roof02 in Block 3) - Regression guard against "sobe e volta"
+    // Position: (-2304, 1024, -926), size: (256, 1792, 256), hatchTriggerCRC = p3dHash("DSLADDER1")
+    DBVolume dbVolRoof02;
+    dbVolRoof02.pos = { -2304, 1024, -926 };
+    dbVolRoof02.bboxMin = { -2304 - 128, 1024 - 896, -926 - 128 };
+    dbVolRoof02.bboxMax = { -2304 + 128, 1024 + 896, -926 + 128 };
+    dbVolRoof02.attribCount = 5;
+    dbVolRoof02.attribs = new DBAttrib[5]{
+        { 6, 1, 180, nullptr },
+        { 7, 0, 0, "TRUE" },
+        { 8, 0, 0, "bob" },
+        { 9, 0, 0, "DSLADDER1" },
+        { 15, 1, 3, nullptr }
+    };
+
+    Ladder hubLadder(&dbVolRoof02.pos, AITypes::TT_LADDER);
+    hubLadder.AnalyzeMesh(&dbVolRoof02);
+    require(hubLadder.teleportTargetCRC == 0, "Hub roof ladder has no teleport target");
+    require(hubLadder.collBox.minY == -896, "Hub roof ladder minY must NOT be artificially extended");
+    require(hubLadder.collBox.minX == -128 && hubLadder.collBox.maxX == 128,
+            "Hub roof ladder X bounds must remain default");
+
+    hubLadder.state = 2; // Active climbing state
+
+    // 8a. Jackie reaching the top and pulling up (AS_LEDGE_PULLUP = 24) must NOT re-grab the ladder
+    mockPlayer->actionState = AS_LEDGE_PULLUP;
+    mockPlayer->pos = { -2304, 1024 + 896 + 256, -926 };
+    mockPlayer->homePos = mockPlayer->pos;
+    mockPlayer->commandBits = (1 << 2) | (1 << 7); // Player holding UP and grab
+    hubLadder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == AS_LEDGE_PULLUP,
+            "Jackie in AS_LEDGE_PULLUP must never be forced back onto the ladder");
+
+    // 8b. Jackie on the roof holding D-pad UP must NOT grab ladder to climb down
+    mockPlayer->actionState = 0; // AS_STAND on roof
+    mockPlayer->pos = { -2304, 1024 + 896 + 256, -926 };
+    mockPlayer->homePos = mockPlayer->pos;
+    mockPlayer->commandBits = (1 << 2); // Player holding UP to walk forward
+    hubLadder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == 0,
+            "Holding D-pad UP on the roof must NOT trigger climb down");
+
+    // 8c. Jackie on roof pressing Grab while holding UP must NOT climb down
+    mockPlayer->actionState = 0;
+    mockPlayer->commandBits = (1 << 2) | (1 << 7); // UP + Grab
+    hubLadder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == 0,
+            "Holding UP + Grab on roof must NOT trigger climb down");
+
+    // 8d. Jackie on roof deliberately pressing Grab (without UP) initiates climb down if ledge found
+    // (LedgePrototype returns false in minimal unit test stub, so actionState remains 0 without crashing)
+    mockPlayer->actionState = 0;
+    mockPlayer->commandBits = (1 << 7); // Grab only
+    hubLadder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == 0,
+            "Grab only on roof without valid ledge safely returns");
 
     std::printf("PASS: Hub sewer tunnel activation, teleporter, and ladder grab tests succeeded!\n");
     return 0;

@@ -52,21 +52,29 @@ void Ladder::AnalyzeMesh(DBRoot* root) {
     orientation.y = root->field44;
     orientation.z = root->field48;
 
+    const DBAttrib* a10 = root->FindAttrib(10);
+    teleportTargetCRC = 0;
+    if (a10) {
+        const char* attrString = a10->GetAttribString();
+        if (attrString && attrString[0] != '\0') {
+            teleportTargetCRC = (s32)p3dHash(attrString);
+        }
+    }
+
     DBVolume* vol = dynamic_cast<DBVolume*>(root);
     if (vol) {
         tagCollisionBox box = {};
         FillCollisionBox(box, *vol);
         box.maxY = (s16)(box.maxY + 256);
-        // Extend minY downward so player standing on the floor beneath the ladder
-        // (floor Y=9472..9984 while ladder base is 10368) intersects the collision box
-        // in Obstacle::HandleHumanoidObstacleCollision's yPass check:
-        box.minY = (s16)(box.minY - 2048);
-        // Extend X and Z symmetrically so humanoid approaching the ladder from
-        // the corridor (along X or Z) easily enters the approach zone:
-        box.minX = (s16)(box.minX - 384);
-        box.maxX = (s16)(box.maxX + 384);
-        box.minZ = (s16)(box.minZ - 384);
         box.maxZ = (s16)(box.maxZ + 384);
+        // Only sewer tunnel teleport exit ladders (such as roof20 in Block 6)
+        // hanging above sewer floor level need downward extension and corridor X widening:
+        if (teleportTargetCRC != 0) {
+            box.minY = (s16)(box.minY - 2048);
+            box.minX = (s16)(box.minX - 384);
+            box.maxX = (s16)(box.maxX + 384);
+            box.minZ = (s16)(box.minZ - 384);
+        }
         SetCollisionBox(box);
     }
 
@@ -82,7 +90,7 @@ void Ladder::AnalyzeMesh(DBRoot* root) {
     // PSX field mapping (AnalyzeMesh__6Ladder):
     //   attrib 8  -> deathCheckCRC
     //   attrib 9  -> hatchTriggerCRC
-    //   attrib 10 -> teleportTargetCRC
+    //   attrib 10 -> teleportTargetCRC (handled above for box sizing)
     //   attrib 11 -> hatchCloseCRC
     const DBAttrib* a8 = root->FindAttrib(8);
     deathCheckCRC = 0;
@@ -99,15 +107,6 @@ void Ladder::AnalyzeMesh(DBRoot* root) {
         const char* attrString = a9->GetAttribString();
         if (attrString && attrString[0] != '\0') {
             hatchTriggerCRC = (s32)p3dHash(attrString);
-        }
-    }
-
-    const DBAttrib* a10 = root->FindAttrib(10);
-    teleportTargetCRC = 0;
-    if (a10) {
-        const char* attrString = a10->GetAttribString();
-        if (attrString && attrString[0] != '\0') {
-            teleportTargetCRC = (s32)p3dHash(attrString);
         }
     }
 
@@ -334,18 +333,20 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
         return;
     }
 
-    // PSX state 73 (0x49): return
-    if (as == 73) return;
+    // PSX state 73 (0x49): return.
+    // Also ignore when humanoid is actively pulling up onto a ledge or latching (states 23/24)
+    // so Jackie does not immediately re-grab the ladder upon stepping onto the roof.
+    if (as == AS_LEDGE_PULLUP || as == AS_LEDGE_LATCH || as == 73) return;
 
     // Default: player approaching ladder check for grab input
     hum->field368 |= 2;
 
     s32 grabButton = 0;
     s32 bits = hum->commandBits;
-    // Accept Grab button (bit 7: Action/Circle, bit 15: R1 Grab on PSP),
-    // D-pad UP (bit 2: walking directly into ladder rungs),
-    // or active jump state (AS_JUMP)
-    if (((bits >> 7) & 1) || ((bits >> 15) & 1) || ((bits >> 2) & 1) || as == AS_JUMP) {
+    // PSX 0x8008A468: check Grab button (bit 7: Action/Circle, bit 15: R1 Grab on PSP).
+    // Do NOT include D-pad UP here; climbing up to a roof involves holding UP, which
+    // would otherwise immediately re-grab the ladder at the top to climb down.
+    if (((bits >> 7) & 1) || ((bits >> 15) & 1)) {
         grabButton = 1;
     }
     if (!grabButton) return;
@@ -354,6 +355,9 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
     // gp[2436] = TOP_OF_LADDER_GRASP_OFFSET_Y_FUDGE = 80 (NOT g_floorYSearchOffset=384).
     if (hum->pos.y > (maxY - 256 - TOP_OF_LADDER_GRASP_OFFSET_Y_FUDGE)) {
         if (hum != (Humanoid*)Player::s_player) return;
+        // Never climb down if the player is pushing D-pad UP/forward onto the roof
+        if ((bits >> 2) & 1) return;
+
         LVector ledgeNormal = {};
         LVector ledgePos = {};
         if (!CheckForLedges(ledgeNormal, ledgePos)) {
@@ -368,10 +372,13 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
 
     // PSX 0x8008A50C: bottom approach uses current pos.y.
     // Allow humanoid vertical reach tolerance below minY so ladders slightly
-    // above floor level (such as roof20 in Hub sewers, floor Y=9472..9984, ladder minY=10368)
-    // can be grabbed cleanly from the ground.
+    // above floor level can be grabbed cleanly from the ground.
     s32 reachTolerance = hum->collBboxMin.z > 0 ? (s32)hum->collBboxMin.z : 768;
-    if (hum->pos.y < (minY - reachTolerance - 2048)) return;
+    s32 extraReach = (teleportTargetCRC != 0) ? 2048 : 0;
+    if (hum->pos.y < (minY - reachTolerance - extraReach)) return;
+
+    s32 maxZ = pos.z + (s32)collBox.maxZ;
+    if (teleportTargetCRC == 0 && savedHomePos.z >= maxZ - 384) return;
 
     PutHumanoidOnLadder(hum);
     hum->SetActionState(AS_LADDER_CLIMB_UP, 0);
