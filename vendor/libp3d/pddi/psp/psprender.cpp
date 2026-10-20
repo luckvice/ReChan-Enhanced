@@ -2066,8 +2066,7 @@ void pspContext::BeginFrame() {
     // key alive across 3D primitive buffers within this frame; Setup3DState
     // does not modify the texture registers, and invalidating it there turns
     // every otherwise identical material into a full page/CLUT bind.
-    pageBindingValid = false;
-    pageTexScaleValid = false;
+    ForgetTextureState();
 #if defined(PSP_PERF_TELEMETRY)
     // Sample allocator/kernel state at most once per 60 presented frames.
     // Guard the arguments too: release must not execute diagnostic syscalls.
@@ -2314,10 +2313,9 @@ void pspContext::FlushQueuedOpaqueDraws() {
     vramHandle = savedVramHandle;
     texInfoOverride = savedTexInfoOverride;
     texInfoWord = savedTexInfoWord;
-    // The last replayed command may belong to a different page than the
-    // caller's current state. Force the next immediate draw to bind its page.
-    pageBindingValid = false;
-    pageTexScaleValid = false;
+    // The last replayed command may belong to a different page or CLUT than
+    // the caller's current state. Force the next immediate draw to rebind.
+    ForgetTextureState();
 #else
     opaqueQueueCount = 0;
 #endif
@@ -2420,6 +2418,7 @@ void pspContext::FlushList() {
     BindDrawFramebuffer();
 #endif
     listOpen = true;
+    ForgetTextureState();
 }
 
 void pspContext::EnsureListSpace(std::size_t payloadBytes) {
@@ -3125,6 +3124,10 @@ void pspContext::InvalidatePages(u32 handle) {
     if (clutBindingValid && lastClutHandle == handle) {
         clutBindingValid = false;
     }
+    if (pageBindingValid && lastBoundHandle == handle) {
+        pageBindingValid = false;
+        pageTexScaleValid = false;
+    }
     // Create/update/destroy of the PSX VRAM image: no cached palette survives.
     if (handle == 1u) ++vramEpoch;
     for (auto& cache : pageCache) {
@@ -3181,6 +3184,10 @@ void pspContext::UpdateVRAMTextureRect(u32 handle, int x, int y, int w, int h,
     // decoded page resident.  The GE palette is still stale in that case.
     if (clutBindingValid && lastClutHandle == handle) {
         clutBindingValid = false;
+    }
+    if (pageBindingValid && lastBoundHandle == handle) {
+        pageBindingValid = false;
+        pageTexScaleValid = false;
     }
 
     const size_t rowBytes = static_cast<size_t>(maxX - minX) * sizeof(u16);
@@ -4271,8 +4278,10 @@ void pspContext::DrawPrimBuffer(pddiPrimBuffer* base, u32 indexOffset, u32 index
         else if (currentTexture && realTextureMode) {
             ConfigureTexture(static_cast<pspTexture*>(currentTexture), false);
             GuDisable(GU_ALPHA_TEST);
+            pageBindingValid = false;
         }
         else {
+            pageBindingValid = false;
             GuDisable(GU_TEXTURE_2D);
             GuDisable(GU_ALPHA_TEST);
         }
