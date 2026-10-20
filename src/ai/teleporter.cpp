@@ -1,4 +1,4 @@
-﻿#include "gen/common.h"
+#include "gen/common.h"
 #include "ai/teleporter.h"
 #include "ai/humanoid.h"
 #include "ai/player.h"
@@ -94,15 +94,23 @@ void Teleporter::HandleHumanoidCollision(Humanoid* hum) {
         return;
     }
 
-    if (g_blockManager && g_blockManager->GetBlockNumber(targetPos) == BLOCK_UNASSIGNED) {
+    u16 targetBlock = BLOCK_UNASSIGNED;
+    if (g_blockManager) {
+        targetBlock = g_blockManager->GetBlockNumberAllBlocks(targetPos);
+        if (targetBlock == BLOCK_UNASSIGNED) {
+            targetBlock = g_blockManager->GetBlockNumber(targetPos);
+        }
+    }
+
+    if (targetBlock == BLOCK_UNASSIGNED) {
         LOG("[Teleporter::HandleHumanoidCollision] targetPos block UNASSIGNED, skipping teleport from (%d,%d,%d) to (%d,%d,%d)",
             hum->pos.x, hum->pos.y, hum->pos.z,
             targetPos.x, targetPos.y, targetPos.z);
         return;
     }
 
-    LOG("[Teleporter::HandleHumanoidCollision] teleporting to (%d,%d,%d) angle=%d",
-        targetPos.x, targetPos.y, targetPos.z, targetAngle);
+    LOG("[Teleporter::HandleHumanoidCollision] teleporting to (%d,%d,%d) angle=%d targetBlock=%u",
+        targetPos.x, targetPos.y, targetPos.z, targetAngle, targetBlock);
 
     hum->DeleteRightHandObj();
     hum->DeleteLeftHandObj();
@@ -117,6 +125,7 @@ void Teleporter::HandleHumanoidCollision(Humanoid* hum) {
     hum->pos.x += delta.x;
     hum->pos.y += delta.y;
     hum->pos.z += delta.z;
+    hum->blockNum = targetBlock;
 
     hum->ClearFloorHeight();
     hum->SetDesiredMoveDirection(targetAngle);
@@ -125,11 +134,16 @@ void Teleporter::HandleHumanoidCollision(Humanoid* hum) {
 
     // PSX: adjusts thePlayer height-tracking fields by deltaY
     Player* player = Player::s_player;
+    player->blockNum = targetBlock;
     player->jumpReturnHeight += delta.y;
     player->groundStandHeight += delta.y;
 
     if (killThings && g_ai) {
         g_ai->KillThings(blockNum);
+    }
+
+    if (g_blockManager) {
+        g_blockManager->DemandLoading();
     }
 
     // PSX: theCamera->lookAtMode = 1 (direct write, not SetLookAtTarget)

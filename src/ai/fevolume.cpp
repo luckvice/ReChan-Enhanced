@@ -1,4 +1,5 @@
 #include "ai/fevolume.h"
+#include <algorithm>
 #include "ai/humanoid.h"
 #include "ai/player.h"
 #include "fe/femenumgr.h"
@@ -15,6 +16,9 @@ FrontEndVolume::FrontEndVolume(const LVector* pos, u16 type) : Obstacle(pos, typ
     MARKFUNCTION(0x8001A758);
     savedPos = {};
     levelCode = 0;
+    // FrontEndVolume is a pure trigger volume; it has no 3D mesh but must be
+    // flagged as created to participate in humanoid collision broad/narrow phases.
+    flags |= TF_MODEL_CREATED;
 }
 
 void FrontEndVolume::Reset() {
@@ -54,6 +58,30 @@ void FrontEndVolume::AnalyzeMesh(DBRoot* root) {
     tagCollisionBox localBox = {};
     DBVolume* vol = static_cast<DBVolume*>(root);
     FillCollisionBox(localBox, *vol);
+
+    const DBAttrib* a8 = root->FindAttrib(8);
+    if (a8) {
+        levelCode = (s32)a8->value;
+    }
+
+    // Sewer tunnel mission triggers (District 3: levels 30, 31, 32).
+    // The tunnel floor terminates into drop-off shafts; widen the tunnel corridor
+    // bounds toward the entrance and deepen downward extent (minY) so running
+    // players trigger the location menu reliably without falling into the void.
+    if (levelCode >= 30 && levelCode <= 32) {
+        localBox.minY = -3000;
+        localBox.maxY = 2000;
+        if (levelCode == 30) {
+            localBox.maxX = std::max<s16>(localBox.maxX, 1400);
+        } else if (levelCode == 31) {
+            localBox.minX = std::min<s16>(localBox.minX, -1400);
+        } else if (levelCode == 32) {
+            localBox.minX = std::min<s16>(localBox.minX, -1400);
+        }
+    } else if (levelCode >= 10) {
+        localBox.minY = std::min<s16>(localBox.minY, -2000);
+    }
+
     SetCollisionBox(localBox);
 
     // PSX copies this object's position after AnalyzeMesh setup.
@@ -65,11 +93,6 @@ void FrontEndVolume::AnalyzeMesh(DBRoot* root) {
         if (point) {
             savedPos = point->pos;
         }
-    }
-
-    const DBAttrib* a8 = root->FindAttrib(8);
-    if (a8) {
-        levelCode = (s32)a8->value;
     }
 }
 

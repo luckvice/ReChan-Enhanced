@@ -600,7 +600,8 @@ Thing* AI::AddThingNoTagList(const char* name, u16 type,
 
     // PSX LABEL_162: CreateModel(modelName) then Reset()
     // PSX: if (!type || GetBlockNumber(pos) != 4096) CreateModel(modelName);
-    if (!type || !g_blockManager || g_blockManager->GetBlockNumber(*pos) != 4096) {
+    // FrontEndVolume (TT_BOSS) has no 3D mesh model but needs TF_MODEL_CREATED to participate in collision.
+    if (!type || !g_blockManager || g_blockManager->GetBlockNumber(*pos) != 4096 || type == AITypes::TT_BOSS) {
         thing->CreateModel(modelName);
     }
 
