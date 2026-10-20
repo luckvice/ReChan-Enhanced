@@ -360,7 +360,18 @@ StaticPspVram g_staticVram = {};
 pspContext* g_activeContext = nullptr;
 pspShader* g_activeShader = nullptr;
 static u32 s_geFrameStartUs = 0;
+static u32 s_geActiveStartUs = 0;
+static bool s_geActiveStarted = false;
 static u32 s_lastGeDurationUs = 0;
+
+static inline void MarkGeActive() {
+#if defined(RC_PLATFORM_PSP)
+    if (!s_geActiveStarted) {
+        s_geActiveStartUs = sceKernelGetSystemTimeLow();
+        s_geActiveStarted = true;
+    }
+#endif
+}
 
 // Relative eDRAM offset of the colour buffer the GE is drawing.
 static std::uintptr_t DrawFramebufferOffset() {
@@ -2039,6 +2050,8 @@ void pspContext::BeginFrame() {
     WaitForSwapVblank();
 #if defined(RC_PLATFORM_PSP)
     s_geFrameStartUs = sceKernelGetSystemTimeLow();
+    s_geActiveStartUs = 0;
+    s_geActiveStarted = false;
 #endif
     sceGuStart(GU_DIRECT, g_displayListStorage.words);
 #if defined(PSP_TRIPLE_BUFFER)
@@ -2342,7 +2355,9 @@ void pspContext::FinishList() {
     sceGuSync(0, 0);
 #if defined(RC_PLATFORM_PSP)
     const u32 geSyncEnd = sceKernelGetSystemTimeLow();
-    if (s_geFrameStartUs != 0 && geSyncEnd >= s_geFrameStartUs) {
+    if (s_geActiveStarted && geSyncEnd >= s_geActiveStartUs) {
+        s_lastGeDurationUs = geSyncEnd - s_geActiveStartUs;
+    } else if (s_geFrameStartUs != 0 && geSyncEnd >= s_geFrameStartUs) {
         s_lastGeDurationUs = geSyncEnd - s_geFrameStartUs;
     }
 #endif
@@ -2477,6 +2492,7 @@ void pspContext::Setup2DState() {
 }
 
 void pspContext::Clear(int flags) {
+    MarkGeActive();
     FlushQueuedOpaqueDraws();
     EnsureListSpace();
     const u32 color = MakeColor(clearColour);
@@ -2490,6 +2506,7 @@ void pspContext::Clear(int flags) {
 }
 
 void pspContext::ClearDepthNow() {
+    MarkGeActive();
     pendingDepthClear = false;
     if (!listOpen) {
         pendingDepthClear = true;
@@ -2761,6 +2778,7 @@ void pspContext::DrawQuad(pddiBaseShader* shader, float x, float y, float w, flo
 void pspContext::DrawQuadBatch(pddiTexture* tex, pddiBlendMode blend,
                                const pddiBatchVertex* source, s32 vertCount) {
     if (!listOpen || !source || vertCount <= 0) return;
+    MarkGeActive();
     PspPerf::CountRenderer(PspPerf::RendererCounter::OverlayQuads,
                            static_cast<u32>(vertCount) / 6u);
     PspPerf::ScopeTimer overlayTimer(PspPerf::RendererCounter::OverlayUs);
@@ -2916,6 +2934,7 @@ void pspContext::DrawQuadBatch(pddiTexture* tex, pddiBlendMode blend,
 }
 
 void pspContext::Draw2D(const PspVertex* vertices, int count, pddiTexture* texture) {
+    MarkGeActive();
     if (texture) ConfigureTexture(static_cast<pspTexture*>(texture), false);
     else GuDisable(GU_TEXTURE_2D);
 
@@ -3912,6 +3931,7 @@ bool pspContext::DrawRecordedPrimBuffer(pspPrimBuffer* buffer, int indexedFormat
 }
 
 void pspContext::DrawPrimBuffer(pddiPrimBuffer* base, u32 indexOffset, u32 indexCount) {
+    MarkGeActive();
     PspPerf::ScopeTimer submitTimer(PspPerf::RendererCounter::SubmitUs);
     PspPerf::Mark(PspPerf::RuntimeStage::PrimBegin, indexOffset, indexCount);
     // This device only manufactures pspPrimBuffer instances, and every

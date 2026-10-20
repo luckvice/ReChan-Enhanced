@@ -447,6 +447,7 @@ public:
     s32 Invoke(); // 1 = stay in menu, 4 = state change, 8 = resume play
     void Render();
     bool DrawTitleScreen();
+    void ReleaseTitleScreenTextures();
     bool DrawLoadingScreen(u8 fill, u8 pulseR8);
     void DrawTitleStartPrompt(s32 baseX, s32 baseY);
 

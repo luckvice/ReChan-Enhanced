@@ -4528,6 +4528,31 @@ void feCustomMenuMgr::LoadMenuOrnamentTexture() {
 #endif
 }
 
+void feCustomMenuMgr::ReleaseTitleScreenTextures() {
+    ReleaseTitleScreenEffects();
+
+    if (m_titleScreenBackgroundTexture) {
+        m_titleScreenBackgroundTexture->Release();
+        m_titleScreenBackgroundTexture = nullptr;
+    }
+    if (m_titleScreenJackieTexture) {
+        m_titleScreenJackieTexture->Release();
+        m_titleScreenJackieTexture = nullptr;
+    }
+    if (m_titleScreenLogoTexture) {
+        m_titleScreenLogoTexture->Release();
+        m_titleScreenLogoTexture = nullptr;
+    }
+#if defined(RC_PLATFORM_PSP)
+    if (m_titleScreenEditionTexture) {
+        m_titleScreenEditionTexture->Release();
+        m_titleScreenEditionTexture = nullptr;
+    }
+#endif
+
+    m_titleScreenTextureTried = false;
+}
+
 void feCustomMenuMgr::LoadSplashTextures() {
     if (!m_titleScreenTextureTried) {
         m_titleScreenTextureTried = true;
