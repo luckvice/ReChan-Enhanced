@@ -53,7 +53,7 @@ static const char* kClockTexturePath = "pc/textures/frontend/clock.png";
 static const s32 kHudBodyStrikePx[] = { 14, 18 };
 static const s32 kHudTitleStrikePx[] = { 16 };
 static const s32 kMenuHintStrikePx = 14;
-static const s32 kLegalStrikePx[] = { 12, 14 };
+static const s32 kLegalStrikePx[] = { 12, 14, 16 };
 static const char* kLegalFontName = "Legal";
 #endif
 
@@ -1317,6 +1317,7 @@ static void ApplyHudStyleFonts() {
     g_textManager->AddFontStrike(bodyFont, kMenuHintStrikePx, false);
     for (s32 px : kLegalStrikePx) {
         g_textManager->AddFontStrike(kLegalFontName, px, false);
+        g_textManager->AddFontStrike(kLegalFontName, px, true);
     }
 }
 #endif

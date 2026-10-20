@@ -3096,7 +3096,7 @@ static void DrawPerformanceOverlay() {
     const float ms = static_cast<float>(s_displayedFrametimeUs) / 1000.0f;
 
     if (mode == PspPerfDisplay_Fps) {
-        std::snprintf(osd, sizeof(osd), "%lu FPS  %.1f ms",
+        std::snprintf(osd, sizeof(osd), "%lu FPS (%.1f ms)",
                       static_cast<unsigned long>(s_displayedFps), ms);
     } else {
         const float activeMs = g_frameProfile.logicMs + g_frameProfile.drawSubmitMs;
@@ -3113,16 +3113,17 @@ static void DrawPerformanceOverlay() {
         const size_t freeRam = sceKernelTotalFreeMemSize();
         const float ramMb = static_cast<float>(freeRam) / (1024.0f * 1024.0f);
 
-        std::snprintf(osd, sizeof(osd), "%lu FPS %.1fms | CPU %d%% | VRAM %.1f/%.1fM | RAM %.1fM",
+        std::snprintf(osd, sizeof(osd), "%lu FPS (%.1fms)  CPU: %d%%\nVRAM: %.2f/%.2fM  RAM: %.1fM",
                       static_cast<unsigned long>(s_displayedFps), ms, cpuPct, vramMb, vramTotalMb, ramMb);
 #else
-        std::snprintf(osd, sizeof(osd), "%lu FPS %.1fms | CPU %d%%",
+        std::snprintf(osd, sizeof(osd), "%lu FPS (%.1fms)  CPU: %d%%",
                       static_cast<unsigned long>(s_displayedFps), ms, cpuPct);
 #endif
     }
 
     g_textManager->SetFontByName("Legal");
-    g_textManager->SetScale(SCREEN_SCALE_Y(0.12f), SCREEN_SCALE_Y(0.12f));
+    const f32 scale = (mode == PspPerfDisplay_Full) ? SCREEN_SCALE_Y(0.36f) : SCREEN_SCALE_Y(0.40f);
+    g_textManager->SetScale(scale, scale);
     g_textManager->SetAlignment(TextAlign_Left);
     g_textManager->SetWrapWidth(0.0f);
     g_textManager->SetLineSpacing(0);
@@ -3138,7 +3139,10 @@ static void DrawPerformanceOverlay() {
         g_textManager->SetColor(255, 80, 80);
     }
 
-    g_textManager->PrintString(osd, HudX(8.0f), SCREEN_HEIGHT - HudY(10.0f));
+    const f32 y = (mode == PspPerfDisplay_Full)
+        ? SCREEN_HEIGHT - HudY(34.0f)
+        : SCREEN_HEIGHT - HudY(20.0f);
+    g_textManager->PrintString(osd, HudX(8.0f), y);
 }
 
 void DrawDebugInfo() {
