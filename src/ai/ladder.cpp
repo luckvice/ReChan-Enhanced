@@ -31,6 +31,9 @@ Ladder::Ladder(const LVector* pos, u16 type) : Obstacle(pos, type) {
     hatchThing = nullptr;
     deathThing = nullptr;
     hatchYTrigger = 0x7FFFFFFF;
+    // Ladder trigger volumes have no separate 3D mesh model, but must be flagged
+    // as model-created so broadphase snapshots and obstacle collision passes include them.
+    flags |= TF_MODEL_CREATED;
 }
 
 Ladder::~Ladder() {
@@ -54,6 +57,15 @@ void Ladder::AnalyzeMesh(DBRoot* root) {
         tagCollisionBox box = {};
         FillCollisionBox(box, *vol);
         box.maxY = (s16)(box.maxY + 256);
+        // Extend minY downward so player standing on the floor beneath the ladder
+        // (floor Y=9472..9984 while ladder base is 10368) intersects the collision box
+        // in Obstacle::HandleHumanoidObstacleCollision's yPass check:
+        box.minY = (s16)(box.minY - 2048);
+        // Extend X and Z symmetrically so humanoid approaching the ladder from
+        // the corridor (along X or Z) easily enters the approach zone:
+        box.minX = (s16)(box.minX - 384);
+        box.maxX = (s16)(box.maxX + 384);
+        box.minZ = (s16)(box.minZ - 384);
         box.maxZ = (s16)(box.maxZ + 384);
         SetCollisionBox(box);
     }
@@ -263,7 +275,6 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
     // PSX naming in disasm: s1=pos.y+collBox.minY, s2=pos.y+collBox.maxY.
     s32 minY = pos.y + (s32)collBox.minY;
     s32 maxY = pos.y + (s32)collBox.maxY;
-    s32 maxZ = pos.z + (s32)collBox.maxZ;
 
     s32 as = hum->actionState;
 
@@ -331,7 +342,10 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
 
     s32 grabButton = 0;
     s32 bits = hum->commandBits;
-    if (((bits >> 7) & 1) || ((bits >> 15) & 1)) {
+    // Accept Grab button (bit 7: Action/Circle, bit 15: R1 Grab on PSP),
+    // D-pad UP (bit 2: walking directly into ladder rungs),
+    // or active jump state (AS_JUMP)
+    if (((bits >> 7) & 1) || ((bits >> 15) & 1) || ((bits >> 2) & 1) || as == AS_JUMP) {
         grabButton = 1;
     }
     if (!grabButton) return;
@@ -354,11 +368,10 @@ void Ladder::HandleHumanoidCollision(Humanoid* hum) {
 
     // PSX 0x8008A50C: bottom approach uses current pos.y.
     // Allow humanoid vertical reach tolerance below minY so ladders slightly
-    // above floor level (such as roof20 in Hub sewers, floor Y=9984..10240, ladder minY=10368)
+    // above floor level (such as roof20 in Hub sewers, floor Y=9472..9984, ladder minY=10368)
     // can be grabbed cleanly from the ground.
     s32 reachTolerance = hum->collBboxMin.z > 0 ? (s32)hum->collBboxMin.z : 768;
-    if (hum->pos.y < (minY - reachTolerance)) return;
-    if (savedHomePos.z >= maxZ - 384) return;
+    if (hum->pos.y < (minY - reachTolerance - 2048)) return;
 
     PutHumanoidOnLadder(hum);
     hum->SetActionState(AS_LADDER_CLIMB_UP, 0);

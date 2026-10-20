@@ -439,9 +439,26 @@ int main() {
     };
 
     Ladder ladder(&dbVolLadder.pos, AITypes::TT_LADDER);
+    require((ladder.flags & TF_MODEL_CREATED) != 0, "Ladder must have TF_MODEL_CREATED set in constructor");
+
     ladder.AnalyzeMesh(&dbVolLadder);
     require(ladder.teleportTargetCRC == (s32)p3dHash("sOUT"), "Ladder must have teleportTargetCRC for sOUT");
     require(ladder.hatchYTrigger == 11000, "Ladder must have hatchYTrigger = 11000");
+    require(ladder.collBox.minY <= -3000, "Ladder minY must extend down to cover floor level");
+    require(ladder.collBox.minX <= -500 && ladder.collBox.maxX >= 500,
+            "Ladder X bounds must cover approach corridor");
+
+    // Verify broadphase / narrowphase intersection checks pass for humanoid on the sewer floor
+    LVector testPosLadder_Floor1 = { -12100, 9984, 26496 }; // Floor 1 in front of ladder
+    LVector testPosLadder_Floor2 = { -12416, 9472, 26496 }; // Floor 2 lower sewer level
+    require(CheckXZStaticBoxCylinder(ladder.pos, ladder.collBox, ladder.orientation.y, testPosLadder_Floor1, humCyl),
+            "Ladder must detect approach in corridor along X");
+    require(CheckYPass(ladder.pos, ladder.collBox, testPosLadder_Floor1, humCyl),
+            "Ladder must pass Y check on Floor 1");
+    require(CheckXZStaticBoxCylinder(ladder.pos, ladder.collBox, ladder.orientation.y, testPosLadder_Floor2, humCyl),
+            "Ladder must detect approach on Floor 2");
+    require(CheckYPass(ladder.pos, ladder.collBox, testPosLadder_Floor2, humCyl),
+            "Ladder must pass Y check on lower Floor 2");
 
     ladder.Reset();
     require(ladder.state == 0, "Ladder initially resets to state 0");
@@ -451,9 +468,9 @@ int main() {
     g_director->codeSnipPtr = nullptr;
     g_director->scriptState = 0;
 
-    // Test 7a: Player on tunnel floor beneath ladder (Y=10240, while ladder minY=10368)
+    // Test 7a: Player on tunnel floor beneath ladder (Y=9984, while ladder mesh base is 10368)
     // The player's vertical reach must allow grabbing the bottom rung
-    mockPlayer->pos = { -12416, 10240, 26496 };
+    mockPlayer->pos = { -12100, 9984, 26496 };
     mockPlayer->homePos = mockPlayer->pos;
     mockPlayer->actionState = 0; // AS_STAND
     mockPlayer->commandBits = (1 << 7); // Grab button
@@ -464,6 +481,24 @@ int main() {
             "Jackie must grab ladder (roof20) from the sewer floor beneath minY");
     require(mockPlayer->homePos.x == ladder.pos.x && mockPlayer->homePos.z == ladder.pos.z,
             "Jackie XZ must align to ladder upon grab");
+
+    // Test 7a2: Grab with D-pad UP walking into ladder
+    mockPlayer->pos = { -12200, 9472, 26496 };
+    mockPlayer->homePos = mockPlayer->pos;
+    mockPlayer->actionState = 0;
+    mockPlayer->commandBits = (1 << 2); // D-pad UP
+    ladder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == AS_LADDER_CLIMB_UP,
+            "Jackie must grab ladder with D-pad UP");
+
+    // Test 7a3: Grab during jumping into ladder
+    mockPlayer->pos = { -12300, 9800, 26496 };
+    mockPlayer->homePos = mockPlayer->pos;
+    mockPlayer->actionState = AS_JUMP;
+    mockPlayer->commandBits = 0;
+    ladder.HandleHumanoidCollision(mockPlayer);
+    require(mockPlayer->actionState == AS_LADDER_CLIMB_UP,
+            "Jackie must grab ladder while jumping into it");
 
     // Test 7b: Player transitions to AS_LADDER_CLIMBING (27) at bottom (pos.y = 10368)
     mockPlayer->actionState = AS_LADDER_CLIMBING;
