@@ -572,6 +572,10 @@ Thing* AI::AddThingNoTagList(const char* name, u16 type,
         thing->AnalyzeMesh(const_cast<DBRoot*>(root));
     }
 
+    if (modelName && modelName[0] != '\0' && !thing->modelHash) {
+        thing->modelHash = p3dHash(modelName);
+    }
+
     // PSX: for humanoids (type 1-28), OpenCharacter always, then load only when
     // character is not already loaded and loaded-count is below 4.
     if ((u16)(type - 1) < 28u) {

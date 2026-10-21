@@ -729,7 +729,10 @@ void Pickup::UpdatePosition() {
 
     pos = homePos;
     if (g_blockManager) {
-        blockNum = g_blockManager->GetBlockNumber(homePos);
+        u16 newBlock = g_blockManager->GetBlockNumber(homePos);
+        if (newBlock != BLOCK_UNASSIGNED) {
+            blockNum = newBlock;
+        }
     }
 }
 
@@ -752,7 +755,10 @@ s32 Pickup::Release(Thing* owner, ccList* list, const SVector* forceDir, s32 for
             homePos.z = matrix[7];
             pos = homePos;
             if (g_blockManager) {
-                blockNum = g_blockManager->GetBlockNumber(homePos);
+                u16 newBlock = g_blockManager->GetBlockNumber(homePos);
+                if (newBlock != BLOCK_UNASSIGNED) {
+                    blockNum = newBlock;
+                }
             }
         }
     }

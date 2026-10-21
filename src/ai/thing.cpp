@@ -234,6 +234,16 @@ void Thing::UpdatePosition() {
 // PSX: checks InActiveList AND IsValidBlockNumber before activating.
 void Thing::Activate() {
     MARKFUNCTION(0x80061790);
+    if (g_blockManager && (blockNum == BLOCK_UNASSIGNED || !g_blockManager->IsValidBlockNumber(blockNum))) {
+        u16 resolved = g_blockManager->GetBlockNumber(pos);
+        if (resolved == BLOCK_UNASSIGNED) {
+            resolved = g_blockManager->GetBlockNumberAllBlocks(pos);
+        }
+        if (resolved != BLOCK_UNASSIGNED) {
+            blockNum = resolved;
+        }
+    }
+
     bool valid = false;
     if (g_blockManager) {
         if (g_blockManager->InActiveList(blockNum)) {
@@ -320,6 +330,7 @@ void Thing::CreateModel(const char* name) {
     u32 hash;
     if (name) {
         hash = p3dHash(name);
+        modelHash = hash;
     }
     else {
         hash = modelHash;
@@ -435,6 +446,12 @@ void Thing::AnalyzeMesh(DBRoot* root) {
         else if (a5->type == 1) {
             // Numeric attribute - use directly
             modelHash = a5->value;
+        }
+    }
+    if (!modelHash) {
+        const DBMesh* mesh = dynamic_cast<const DBMesh*>(root);
+        if (mesh && mesh->fileName && mesh->fileName[0] != '\0') {
+            modelHash = p3dHash(mesh->fileName);
         }
     }
 

@@ -170,16 +170,6 @@ static bool SameBlockSet(const u16* lhs, u32 lhsCount,
     return true;
 }
 
-static u16 ResolveBlockNumberFromAllBlocks(const std::vector<Block>& blocks, const LVector& pos) {
-    for (u32 index = 0; index < blocks.size(); index++) {
-        if (blocks[index].PointInBlock(&pos)) {
-            return blocks[index].blockNum;
-        }
-    }
-
-    return BLOCK_UNASSIGNED;
-}
-
 // __12BlockManager (BLKMGR.CPP:148)
 BlockManager::BlockManager() {
     MARKFUNCTION(0x8004FE98);
@@ -418,6 +408,9 @@ u16 BlockManager::GetBlockNumber(const LVector& pos) const {
 u16 BlockManager::GetBlockNumberAllBlocks(const LVector& pos) const {
     for (u32 i = 0; i < blocks.size(); i++) {
         const Block& b = blocks[i];
+        if (b.PointInBlock(&pos)) {
+            return b.blockNum;
+        }
         if (pos.x >= b.posX + b.halfExtNegX && pos.x <= b.posX + b.halfExtPosX &&
             pos.y >= b.posY + b.halfExtNegY && pos.y <= b.posY + b.halfExtPosY &&
             pos.z >= b.posZ + b.halfExtNegZ && pos.z <= b.posZ + b.halfExtPosZ) {
@@ -539,10 +532,10 @@ s32 BlockManager::DemandLoading() {
     u16 previousActiveList[kBlockManagerListCapacity] = {};
     const u32 previousToBeLoadedCount = toBeLoadedCount;
     const u32 previousDrawListCount = drawListCount;
-    const u32 previousActiveListCount = alreadyLoadedCount;
+    const u32 previousActiveListCount = activeCount;
     std::copy_n(toBeLoadedList, kBlockManagerListCapacity, previousToBeLoaded);
     std::copy_n(drawList, kBlockManagerListCapacity, previousDrawList);
-    std::copy_n(alreadyLoadedList, kBlockManagerListCapacity, previousActiveList);
+    std::copy_n(activeList, kBlockManagerListCapacity, previousActiveList);
 
     currentBlockNum = playerBlockNum;
     UpdateToBeLoadedList(currentBlockNum);
@@ -554,7 +547,7 @@ s32 BlockManager::DemandLoading() {
         && SameBlockSet(previousDrawList, previousDrawListCount,
                         drawList, drawListCount)
         && SameBlockSet(previousActiveList, previousActiveListCount,
-                        alreadyLoadedList, alreadyLoadedCount);
+                        activeList, activeCount);
     if (windowsUnchanged) {
         return 0;
     }
