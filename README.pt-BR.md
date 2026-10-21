@@ -19,7 +19,7 @@ Este fork mantido por **Luckvice** tem como objetivo proporcionar uma experiênc
 > **Agradecimentos Especiais & Reconhecimento**: Nossos sinceros agradecimentos ao criador original ([SilverwireGames](https://github.com/SilverwireGames/ReChan)) e a todos os contribuidores da base original de engenharia reversa. O propósito deste fork é levar a experiência de *Jackie Chan Stuntmaster* ao seu mais alto nível de fidelidade e performance.
 
 > [!IMPORTANT]
-> **Status Oficial do Projeto**: Estamos oficialmente na **Beta 4.1**! Os esforços atuais estão focados em consolidar a estabilidade, o desempenho e o polimento geral em todas as plataformas e na engine base, preparando o terreno para a chegada iminente da **RC1 (Release Candidate 1)**.
+> **Status Oficial do Projeto**: Estamos oficialmente na **Beta 5**! Os esforços atuais estão focados em consolidar a estabilidade, o desempenho e o polimento geral em todas as plataformas e na engine base, preparando o terreno para a chegada iminente da **RC1 (Release Candidate 1)**.
 
 ### Para utilizar este projeto:
 * Você **deve possuir uma cópia legal** de *Jackie Chan Stuntmaster* (SLUS-00684).
@@ -27,7 +27,7 @@ Este fork mantido por **Luckvice** tem como objetivo proporcionar uma experiênc
 * Todos os direitos do jogo original, recursos e propriedade intelectual pertencem aos seus respectivos proprietários.
 
 <br>
-<img src="https://img.shields.io/badge/marco-Beta%204.1-orange?style=flat-square" />
+<img src="https://img.shields.io/badge/marco-Beta%205-orange?style=flat-square" />
 <img src="https://img.shields.io/badge/pr%C3%B3ximo-RC1%20em%20breve-yellow?style=flat-square" />
 <img src="https://img.shields.io/badge/otimizado%20por-Luckvice-blue?style=flat-square" />
 <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green?style=flat-square" />
@@ -42,7 +42,7 @@ Este fork mantido por **Luckvice** tem como objetivo proporcionar uma experiênc
 ## Sobre o Projeto
 * Versão alvo: **SLUS-00684** (NTSC-U)
 * Início do desenvolvimento: **Outubro de 2025**
-* Status atual: **Beta 4.1** (RC1 em breve)
+* Status atual: **Beta 5** (RC1 em breve)
 
 O projeto foca em:
 * Reconstrução da lógica e dos sistemas originais do jogo
@@ -99,7 +99,7 @@ O ReChan suporta atualmente Windows e Linux em x86 de 64 bits (`x86_64`) e macOS
 
 ## Edições por Plataforma
 
-### PSP — *RE:Chan HD Edition* (Beta 4.1 — RC1 em breve)
+### PSP — *RE:Chan HD Edition* (Beta 5 — RC1 em breve)
 
 <p align="center">
   <img src="res/screenshots_psp/xmb.png" width="48%" alt="Interface XMB do PSP e Artwork Oficial">
@@ -123,7 +123,7 @@ Uma build totalmente nativa para PSP (sem emulação) compilada com o PSPSDK, vo
 - Menu de configurações específico para PSP, além de modos de build para depuração/QA, telemetria, teste de estresse (soak) e PRX via PSPLink para desenvolvimento
 - Utiliza a partição estendida de memória de usuário (MEMSIZE) no PSP-2000/3000/Go, com otimizações especializadas de heap de baixa memória (<24 MB de partição de usuário) para total compatibilidade com o **PSP-1000 (Fat)**
 
-Requisitos: Qualquer modelo de PSP (PSP-1000 Fat, PSP-2000 Slim, PSP-3000 Brite ou PSP Go) com custom firmware ou HEN, imagem de disco NTSC-U (SLUS-00684) e cerca de ~1.3 GB livres durante a instalação (~600 MB após a conclusão). Pacote de instalação e notas completas: `dist/psp-release/` (Beta 4.1).
+Requisitos: Qualquer modelo de PSP (PSP-1000 Fat, PSP-2000 Slim, PSP-3000 Brite ou PSP Go) com custom firmware ou HEN, imagem de disco NTSC-U (SLUS-00684) e cerca de ~1.3 GB livres durante a instalação (~600 MB após a conclusão). Pacote de instalação e notas completas: `dist/psp-release/` (Beta 5).
 
 ### macOS — Edição Metal
 
